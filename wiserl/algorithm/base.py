@@ -7,9 +7,9 @@ import gym
 import torch
 import torch.nn as nn
 
-import src
-from src.processor import Identity, Processor
-from src.utils import utils
+import wiserl
+from wiserl.processor import Identity, Processor
+from wiserl.utils import utils
 
 
 class Algorithm(ABC):

@@ -11,7 +11,7 @@ import torch
 from tqdm import trange
 from UtilsRL.logger import BaseLogger
 
-import src.dataset
+import wiserl.dataset
 
 
 class OfflineTrainer(object):
@@ -133,7 +133,7 @@ class OfflineTrainer(object):
         for item in self.dataset_kwargs:
             cls = item["class"]
             ds_kwargs = item["kwargs"]
-            ds = vars(src.dataset)[cls](
+            ds = vars(wiserl.dataset)[cls](
                     observation_space,
                     action_space,
                     **ds_kwargs

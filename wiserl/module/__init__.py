@@ -1,6 +1,6 @@
 from torch.nn import Linear
 
-from src.module.actor import (
+from wiserl.module.actor import (
     BaseActor,
     CategoricalActor,
     ClippedDeterministicActor,
@@ -10,6 +10,6 @@ from src.module.actor import (
     SquashedDeterministicActor,
     SquashedGaussianActor,
 )
-from src.module.critic import Critic, DoubleCritic
-from src.module.net.basic import EnsembleLinear, NoisyLinear
-from src.module.net.mlp import MLP, EnsembleMLP
+from wiserl.module.critic import Critic, DoubleCritic
+from wiserl.module.net.basic import EnsembleLinear, NoisyLinear
+from wiserl.module.net.mlp import MLP, EnsembleMLP

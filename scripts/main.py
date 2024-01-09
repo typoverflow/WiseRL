@@ -6,9 +6,9 @@ import shutil
 from UtilsRL.exp import parse_args, setup
 from UtilsRL.logger import CompositeLogger
 
-import src.algorithm
-from src.env import get_env
-from src.trainer.offline_trainer import OfflineTrainer
+import wiserl.algorithm
+from wiserl.env import get_env
+from wiserl.trainer.offline_trainer import OfflineTrainer
 
 if __name__ == "__main__":
     args = parse_args(convert=False)
@@ -30,7 +30,7 @@ if __name__ == "__main__":
     env = env_fn()
 
     # define the algorithm
-    algorithm = vars(src.algorithm)[args["algorithm"]](
+    algorithm = vars(wiserl.algorithm)[args["algorithm"]](
         env.observation_space,
         env.action_space,
         args["network"],
@@ -51,11 +51,5 @@ if __name__ == "__main__":
         dataloader_kwargs=args["dataloader"],
         **args["trainer_kwargs"],
         logger=logger
-        # total_steps=args["total_steps"],
-        # log_freq=args["log_freq"],
-        # env_freq=args["env_freq"],
-        # eval_freq=args["eval_freq"],
-        # profile_freq=args["profile_freq"],
-        # checkpoint_freq=args["checkpoint_freq"],
     )
     trainer.train()

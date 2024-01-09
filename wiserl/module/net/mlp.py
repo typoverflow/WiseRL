@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Type, Union
 import torch
 import torch.nn as nn
 
-from src.module.net.basic import EnsembleLinear, miniblock
+from wiserl.module.net.basic import EnsembleLinear, miniblock
 
 ModuleType = Type[nn.Module]
 

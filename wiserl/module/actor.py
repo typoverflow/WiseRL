@@ -6,8 +6,8 @@ import torch
 import torch.nn as nn
 from torch.distributions import Categorical, Normal
 
-from src.module.net.mlp import MLP, EnsembleMLP
-from src.utils.distributions import TanhNormal
+from wiserl.module.net.mlp import MLP, EnsembleMLP
+from wiserl.utils.distributions import TanhNormal
 
 ModuleType = Type[nn.Module]
 

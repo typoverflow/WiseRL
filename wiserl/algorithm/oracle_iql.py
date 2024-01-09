@@ -4,14 +4,14 @@ from typing import Any, Dict, Optional, Type
 import torch
 import torch.nn as nn
 
-import src.module
-from src.algorithm.base import Algorithm
-from src.module.actor import DeterministicActor, GaussianActor
-from src.utils.functional import expectile_regression
-from src.utils.misc import make_target, sync_target
+import wiserl.module
+from wiserl.algorithm.base import Algorithm
+from wiserl.module.actor import DeterministicActor, GaussianActor
+from wiserl.utils.functional import expectile_regression
+from wiserl.utils.misc import make_target, sync_target
 
 
-class GTIQL(Algorithm):
+class OracleIQL(Algorithm):
     def __init__(
         self,
         *args,
@@ -33,23 +33,23 @@ class GTIQL(Algorithm):
 
     def setup_network(self, network_kwargs):
         network = {}
-        network["actor"] = vars(src.module)[network_kwargs["actor"]["class"]](
+        network["actor"] = vars(wiserl.module)[network_kwargs["actor"]["class"]](
             input_dim=self.observation_space.shape[0],
             output_dim=self.action_space.shape[0],
             **network_kwargs["actor"]["kwargs"]
         )
-        network["critic"] = vars(src.module)[network_kwargs["critic"]["class"]](
+        network["critic"] = vars(wiserl.module)[network_kwargs["critic"]["class"]](
             input_dim=self.observation_space.shape[0],
             output_dim=1,
             **network_kwargs["critic"]["kwargs"]
         )
-        network["value"] = vars(src.module)[network_kwargs["value"]["class"]](
+        network["value"] = vars(wiserl.module)[network_kwargs["value"]["class"]](
             input_dim=self.observation_space.shape[0],
             output_dim=1,
             **network_kwargs["value"]["kwargs"]
         )
         if "encoder" in network_kwargs:
-            network["encoder"] = vars(src.module)[network_kwargs["encoder"]["class"]](
+            network["encoder"] = vars(wiserl.module)[network_kwargs["encoder"]["class"]](
                 input_dim=self.observation_space.shape[0],
                 output_dim=1,
                 **network_kwargs["encoder"]["kwargs"]

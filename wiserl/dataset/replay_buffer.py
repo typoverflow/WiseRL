@@ -11,7 +11,7 @@ import gym
 import numpy as np
 import torch
 
-from src.utils import utils
+from wiserl.utils import utils
 
 
 def save_data(data: Dict, path: str) -> None:

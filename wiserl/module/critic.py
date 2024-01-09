@@ -3,7 +3,7 @@ from typing import Any, Callable, Dict, Optional, Sequence, Type, Union
 import torch
 import torch.nn as nn
 
-from src.module.net.mlp import MLP, EnsembleMLP
+from wiserl.module.net.mlp import MLP, EnsembleMLP
 
 ModuleType = Type[nn.Module]
 

@@ -5,7 +5,7 @@ import h5py
 import numpy as np
 import torch
 
-from src.utils.utils import remove_float64
+from wiserl.utils.utils import remove_float64
 
 from .replay_buffer import ReplayBuffer
 

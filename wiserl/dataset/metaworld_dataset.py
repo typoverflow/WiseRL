@@ -6,7 +6,7 @@ import gym
 import numpy as np
 import torch
 
-from src.utils import utils
+from wiserl.utils import utils
 
 
 class PairwiseComparisonOfflineDataset(torch.utils.data.IterableDataset):
