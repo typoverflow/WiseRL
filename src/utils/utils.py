@@ -1,3 +1,10 @@
+from typing import Any, Dict, Optional, Union
+
+import h5py
+import numpy as np
+import torch
+
+
 def nest_dict(d: Dict, separator: str = ".") -> Dict:
     nested_d = dict()
     for key in d.keys():
@@ -23,3 +30,18 @@ def get_from_batch(batch: Any, start: Union[int, np.ndarray, torch.Tensor], end:
             return batch[start:end]
     else:
         raise ValueError("Unsupported type passed to `get_from_batch`")
+
+def remove_float64(batch: Any):
+    if isinstance(batch, dict):
+        return {k: remove_float64(v) for k, v in batch.items()}
+    elif isinstance(batch, (list, tuple)):
+        return [remove_float64(v) for v in batch]
+    elif isinstance(batch, np.ndarray):
+        if batch.dtype == np.float64:
+            return batch.astype(np.float32)
+    elif isinstance(batch, torch.Tensor):
+        if batch.dtype == torch.double:
+            return batch.float()
+    else:
+        raise ValueError("Unsupported type passed to `remove_float64`")
+    return batch

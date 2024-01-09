@@ -4,7 +4,8 @@ import gym
 import h5py
 import numpy as np
 import torch
-from research.utils.utils import remove_float64
+
+from src.utils.utils import remove_float64
 
 from .replay_buffer import ReplayBuffer
 

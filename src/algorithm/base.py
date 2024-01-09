@@ -5,26 +5,25 @@ from typing import Any, Dict, List, Optional, Set, Type, Union
 
 import gym
 import torch
+import torch.nn as nn
 
+import src
 from src.processor import Identity, Processor
 from src.utils import utils
 
 
 class Algorithm(ABC):
     _save_keys: Set[str]
+    _module_keys: Set[str]
     _compiled: bool
 
     def __init__(
         self,
         observation_space: gym.Space,
         action_space: gym.Space,
-        network_class: Type[torch.nn.Module],
         network_kwargs: Optional[Dict] = None,
-        optim_class: Type[torch.optim.Optimizer] = torch.optim.Adam,
         optim_kwargs: Optional[Dict] = None,
-        schedulers_class: Optional[Dict] = None,
         schedulers_kwargs: Optional[Dict[str, Dict]] = None,
-        processor_class: Optional[Type[Processor]] = None,
         processor_kwargs: Optional[Dict] = None,
         checkpoint: Optional[str] = None,
         device: Union[str, torch.device] = "cpu",
@@ -39,29 +38,20 @@ class Algorithm(ABC):
         self.observation_space = observation_space
         self.action_space = action_space
 
-        self._device = device
+        self.device = device
 
-        # Setup the attributes
-        self.setup_processor(processor_class, {} if processor_kwargs is None else processor_kwargs)
-        self.setup_network(network_class, {} if network_kwargs is None else network_kwargs)
-
-        # Save values for optimizers, which will be lazily initialized later
+        # setup the networks
+        self.setup_network(network_kwargs)
         self.optim = {}
-        self.optim_class = optim_class
-        self.optim_kwargs = {"lr": 0.0001} if optim_kwargs is None else optim_kwargs
-
-        # Save values for schedulers, which will be lazily initialized later
         self.schedulers = {}
-        self.schedulers_class = {} if schedulers_class is None else schedulers_class
-        self.schedulers_kwargs = {} if schedulers_kwargs is None else schedulers_kwargs
+        self.processor = {}
+        self.setup_optimizers(optim_kwargs)
+        self.setup_schedulers(schedulers_kwargs)
+        self.setup_processor(processor_kwargs)
 
         self._training = False
         if checkpoint is not None:
             self.load(checkpoint, strict=False)
-
-    @property
-    def device(self):
-        return self._device
 
     @property
     def training(self) -> bool:
@@ -78,6 +68,20 @@ class Algorithm(ABC):
     @property
     def compiled(self) -> bool:
         return self._compiled
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        # Check to see if the value is a module etc.
+        if (hasattr(self, "_save_keys") and name in self._save_keys) or (
+            hasattr(self, "_module_keys") and name in self._module_keys
+        ):
+            pass
+        elif isinstance(value, torch.nn.Parameter):
+            self._save_keys.add(name)
+        elif isinstance(value, torch.nn.Module):
+            self._module_keys.add(name)
+            if sum(p.numel() for p in value.parameters()) > 0:
+                self._save_keys.add(name)  # store if we have a module with more than zero parameters.
+        return super().__setattr__(name, value)
 
     @property
     def num_params(self):
@@ -106,7 +110,7 @@ class Algorithm(ABC):
                     _bytes += b.nelement() * b.element_size()
         return _bytes
 
-    def to(self, device) -> "Algorithm":
+    def to(self, device):
         for k in self.save_keys:
             if k == "processor" and not self.processor.supports_gpu:
                 continue
@@ -140,45 +144,27 @@ class Algorithm(ABC):
             getattr(self, k).eval()
         self._training = False
 
-    def setup_processor(self, processor_class: Optional[Type[Processor]], processor_kwargs: Dict) -> None:
-        if processor_class is None:
-            processor = Identity(self.observation_space, self.action_space)
-        else:
-            processor = processor_class(self.observation_space, self.action_space, **processor_kwargs)
+    def setup_processor(self, processor_kwargs) -> None:
+        pass
+        # if processor_class is None:
+        #     processor = Identity(self.observation_space, self.action_space)
+        # else:
+        #     processor = processor_class(self.observation_space, self.action_space, **processor_kwargs)
 
-        if processor.supports_gpu:  # move it to device if it supports GPU computation.
-            self.processor = processor.to(self.device)
-        else:
-            self.processor = processor
+        # if processor.supports_gpu:  # move it to device if it supports GPU computation.
+        #     self.processor = processor.to(self.device)
+        # else:
+        #     self.processor = processor
 
-    def setup_network(self, network_class: Type[torch.nn.Module], network_kwargs: Dict) -> None:
-        self.network = network_class(
-            self.processor.observation_space, self.processor.action_space, **network_kwargs
-        ).to(self.device)
+    def setup_network(self, network_kwargs) -> None:
+        network = {}
+        self.network = nn.ModuleDict(network).to(self.device)
 
-    def setup_optimizers(self) -> None:
-        """
-        This is only called by the Trainer, and not called when we load the model.
-        This is done so that inference jobs don't load the optimizer state.
-        """
-        # Setup Optimizers
-        assert len(self.optim) == 0, "setup_optimizers called twice!"
-        for k in self.save_keys:
-            attr = getattr(self, k)
-            if hasattr(attr, "parameters"):
-                parameters = attr.parameters()
-            else:
-                assert isinstance(attr, torch.nn.Parameter), "Can only save Modules or Parameters."
-                parameters = [attr]
-            # Construct the optimizer
-            self.optim[k] = self.optim_class(parameters, **self.optim_kwargs)
+    def setup_optimizers(self, optim_kwargs) -> None:
+        pass
 
-    def setup_schedulers(self):
-        assert len(self.schedulers) == 0, "setup_schedulers called twice!"
-        for k in self.schedulers_class.keys():
-            if self.schedulers_class[k] is not None:
-                assert k in self.optim, "Did not find schedule key in optimizers dict."
-                self.schedulers[k] = self.schedulers_class[k](self.optim[k], **self.schedulers_kwargs.get(k, dict()))
+    def setup_schedulers(self, scheduler_kwargs):
+        pass
 
     def save(self, path: str, extension: str, metadata: Optional[Dict]=None) -> None:
         """

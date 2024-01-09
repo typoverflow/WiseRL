@@ -10,7 +10,8 @@ from typing import Any, Callable, Dict, Optional, Union
 import gym
 import numpy as np
 import torch
-from research.utils import utils
+
+from src.utils import utils
 
 
 def save_data(data: Dict, path: str) -> None:

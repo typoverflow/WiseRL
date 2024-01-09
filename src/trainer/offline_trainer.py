@@ -11,7 +11,7 @@ import torch
 from tqdm import trange
 from UtilsRL.logger import BaseLogger
 
-import src
+import src.dataset
 
 
 class OfflineTrainer(object):
@@ -20,8 +20,8 @@ class OfflineTrainer(object):
         algorithm,
         env_fn: Optional[Callable] = None,
         eval_env_fn: Optional[Callable] = None,
-        env_runner: Optional[str] = None,
-        eval_env_runner: Optional[str] = None,
+        dataset_kwargs: Optional[Sequence[str]] = None,
+        dataloader_kwargs: Optional[Sequence[Dict]] = None,
         total_steps: int = 1000,
         log_freq: int = 100,
         env_freq: int = 1,
@@ -34,7 +34,6 @@ class OfflineTrainer(object):
         eval_fn: Optional[Any] = None,
         eval_kwargs: Optional[Dict] = None,
         train_dataloader_kwargs: Optional[Dict] = None,
-        validation_dataloader_kwargs: Optional[Dict] = None,
         logger: Optional[BaseLogger] = None
     ):
         # The base model
@@ -43,10 +42,8 @@ class OfflineTrainer(object):
         # Environment parameters
         self._env = None
         self.env_fn = env_fn
-        self.env_runner = env_runner
         self._eval_env = None
         self.eval_env_fn = eval_env_fn
-        self.eval_env_runner = eval_env_runner
 
         # Logging parameters
         self.total_steps = total_steps
@@ -57,28 +54,33 @@ class OfflineTrainer(object):
         self.checkpoint_freq = checkpoint_freq
         self.logger = logger
 
-        # Dataloader parameters
-        self._train_dataloader = None
-        self.train_dataloader_kwargs = {} if train_dataloader_kwargs is None else train_dataloader_kwargs
-        self._validation_dataloader = None
-        self.validation_dataloader_kwargs = {} if validation_dataloader_kwargs is None else validation_dataloader_kwargs
-        self._validation_iterator = None
+        # Datasets and dataloaders
+        self._datasets = None
+        self._dataloaders = None
+        self.dataset_kwargs = dataset_kwargs
+        self.dataloader_kwargs = dataloader_kwargs
+
+    @property
+    def env(self):
+        if self._env is None and self.env_fn is not None:
+            self._env = self.env_fn()
+        return self._env
+
+    @property
+    def eval_env(self):
+        if self._eval_env is None and self.eval_env_fn is not None:
+            self._eval_env = self.eval_env_fn()
+        return self._eval_env
 
     def train(self):
-        # prepare the algorithm for training
-        self.logger.info("Setting up optimizers and schedulers")
-        self.algorithm.setup_optimizers()
-        self.algorithm.setup_schedulers()
-
         self.logger.info("Setting up datasets and dataloaders")
-        self.setup_datasets(self.env, self.total_steps)
-        self.setup_dataloaders()
+        self.setup_datasets_and_dataloaders()
 
 
         # start training
         self.logger.info("Training")
         self.algorithm.train()
-        if env_freq is not None:
+        if self.env_freq is not None:
             env_freq = int(self.env_freq) if self.env_freq >= 1 else 1
             env_iters = int(1 / self.env_freq) if self.env_freq < 1 else 1
         else:
@@ -91,7 +93,7 @@ class OfflineTrainer(object):
                     self.algorithm.env_step(self.env, step, self.total_steps)
 
             # do algorithm train step
-            batches = [next(d) for d in self.train_dataloaders]
+            batches = [next(d) for d in self._dataloaders_iter]
             metrics = self.algorithm.train_step(*batches, step=step, total_steps=self.total_steps)
 
             # log the metrics
@@ -111,27 +113,42 @@ class OfflineTrainer(object):
         if self._eval_env is not None:
             self._eval_env.close()
 
-    def setup_datasets(self, env: gym.Env, total_steps: int):
-        observation_space = env.observation_space
-        action_space = env.action_space
+    def setup_datasets_and_dataloaders(self):
+        assert self.env is not None, "Env is not initialized!"
+        assert self._datasets is None, "Dataset should not be set up twice."
+        assert self._dataloaders is None, "Dataloaders should not be set up twice."
+
+        observation_space = self.env.observation_space
+        action_space = self.env.action_space
+        # parse the dataset arguments
+        if self.dataset_kwargs is None:
+            return
+        if isinstance(self.dataset_kwargs, dict):
+            self.dataset_kwargs = [self.dataset_kwargs, ]
+            # self.dataloader_kwargs = [self.dataloader_kwargs, ]
+        elif not isinstance(self.dataset_kwargs, list):
+            raise TypeError(f"The type of dataset_kwargs should be list or dict.")
+
         self._datasets = []
-        for kwargs in self.dataset_kwargs:
-            self._datasets.append(
-                vars(src.dataset)[kwargs["dataset_class"]](
+        for item in self.dataset_kwargs:
+            cls = item["class"]
+            ds_kwargs = item["kwargs"]
+            ds = vars(src.dataset)[cls](
                     observation_space,
                     action_space,
-                    **kwargs
+                    **ds_kwargs
                 )
-            )
+            self._datasets.append(ds)
 
-    def setup_dataloaders(self):
-        self._train_dataloaders = []
-        for d, kwargs in zip(self._datasets, self.train_dataloader_kwargs):
-            if isinstance(d, torch.utils.data.IterableDataset):
-                self._train_dataloaders.append(
-                    torch.utils.data.DataLoader(
-                        d,
-                        pin_memory=True,
-                        **kwargs
-                    )
-                )
+        if self.dataloader_kwargs is None:
+            self.dataloader_kwargs = {}
+        if isinstance(self.dataloader_kwargs, dict):
+            self.dataloader_kwargs = [self.dataloader_kwargs.copy() for _ in range(len(self._datasets))]
+        elif not isinstance(self.dataloader_kwargs, list):
+            raise TypeError(f"The type of dataloader kwargs should be in dict or list.")
+
+        self._dataloaders = []
+        for ds, dl_kwargs in zip(self._datasets, self.dataloader_kwargs):
+            self._dataloaders.append(torch.utils.data.DataLoader(ds, **dl_kwargs))
+
+        self._dataloaders_iter = [iter(dl) for dl in self._dataloaders]

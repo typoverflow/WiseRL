@@ -3,7 +3,8 @@
 **/.vscode
 **/__pycache__
 *.egg-info
-scripts/
+# scripts/
 out/
 wandb
 tests/
+datasets/

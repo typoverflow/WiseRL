@@ -1,0 +1,74 @@
+algorithm: GTIQL
+algorithm_kwargs:
+  beta: 0.3333
+  expectile: 0.7
+  max_exp_clip: 100.0
+
+network:
+  actor:
+    class: SquashedDeterministicActor
+    kwargs:
+      dropout: 0.0
+      hidden_dims: [512, 512]
+
+  critic:
+    class: Critic
+    kwargs:
+      ensemble_size: 2
+      hidden_dims: [512, 512]
+
+  value:
+    class: Critic
+    kwargs:
+      ensemble_size: 1
+      hidden_dims: [512, 512]
+
+env: mw_drawer-open-v2
+env_kwargs:
+env_wrapper:
+env_wrapper_kwargs:
+
+dataset:
+  class: PairwiseComparisonOfflineDataset
+  kwargs:
+    path: datasets/mw/pref/mw_drawer-open-v2_ep2500_n0.3.npz
+    label_key: "rl_sum"
+    segment_length: null
+    batch_size: null
+    capacity: 2500
+    mode: dense
+    discount: 0.99
+
+dataloader:
+  batch_size: 96
+  num_workers: 2
+
+
+optim:
+  default:
+    class: Adam
+    kwargs:
+      lr: 0.0003
+
+schedulers:
+  actor:
+    class: CosineAnneelingLR
+    kwargs:
+      T_max: 500000
+
+processor: null
+checkpoint: null
+
+trainer_kwargs:
+  env_freq: null
+  total_steps: 500000
+  log_freq: 500
+  profile_freq: 500
+  eval_freq: 5000
+  eval_fn: eval_policy
+  eval_kwargs:
+    num_ep: 25
+
+seed: 0
+name: debug
+debug: true

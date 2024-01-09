@@ -7,7 +7,6 @@ Examples are as follows:
 from typing import Any, Dict, List, Optional, Tuple
 
 import gym
-import research
 import torch
 
 
