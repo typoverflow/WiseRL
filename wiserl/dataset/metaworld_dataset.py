@@ -8,13 +8,28 @@ import torch
 
 from wiserl.utils import utils
 
+DATASET_PATH = {
+    "mw_bin-picking-v2": "datasets/mw/pref/mw_bin-picking-v2_ep2500_n0.3.npz",
+    "mw_button-press-v2": "datasets/mw/pref/mw_button-press-v2_ep2500_n0.3.npz",
+    "mw_door-open-v2": "datasets/mw/pref/mw_door-open-v2_ep2500_n0.3.npz",
+    "mw_drawer-open-v2": "datasets/mw/pref/mw_drawer-open-v2_ep2500_n0.3.npz",
+    "mw_plate-slide-v2": "datasets/mw/pref/mw_plate-slide-v2_ep2500_n0.3.npz",
+    "mw_sweep-info-v2": "datasets/mw/pref/mw_sweep-info-v2_ep2500_n0.3.npz",
+    "mw_bin-picking-image-v2": "datasets/mw/pref_image/mw_bin-picking-v2_ep2500_n0.3_img64.npz",
+    "mw_button-press-image-v2": "datasets/mw/pref_image/mw_button-press-v2_ep2500_n0.3_img64.npz",
+    "mw_door-open-image-v2": "datasets/mw/pref_image/mw_door-open-v2_ep2500_n0.3_img64.npz",
+    "mw_drawer-open-image-v2": "datasets/mw/pref_image/mw_drawer-open-v2_ep2500_n0.3_img64.npz",
+    "mw_plate-slide-image-v2": "datasets/mw/pref_image/mw_plate-slide-v2_ep2500_n0.3_img64.npz",
+    "mw_sweep-info-image-v2": "datasets/mw/pref_image/mw_sweep-info-v2_ep2500_n0.3_img64.npz",
+}
+
 
 class PairwiseComparisonOfflineDataset(torch.utils.data.IterableDataset):
     def __init__(
         self,
         observation_space,
         action_space,
-        path: Optional[str] = None,
+        env: Optional[str],
         discount: float = 0.99,
         segment_length: Optional[int] = None,
         # segment_size: int = 20,
@@ -26,13 +41,14 @@ class PairwiseComparisonOfflineDataset(torch.utils.data.IterableDataset):
     ):
         super().__init__()
         # assert mode in {"dense", "sparse", "score"}
+        self.env_name = env
         self.mode = mode
         self.label_key = label_key
         self.discount = discount
         self.batch_size = 1 if batch_size is None else batch_size
         self.segment_length = segment_length
 
-        assert path is not None, "Must provide dataset file."
+        path = DATASET_PATH[self.env_name]
         with open(path, "rb") as f:
             data = np.load(f)
             data = utils.nest_dict(data)
@@ -90,7 +106,7 @@ class PairwiseComparisonOfflineDataset(torch.utils.data.IterableDataset):
         }
         hard_label = 1.0 * (self.data[self.label_key][data_1_idxs] < self.data[self.label_key][data_2_idxs])
         soft_label = 0.5 * (self.data[self.label_key][data_1_idxs] == self.data[self.label_key][data_2_idxs])
-        batch["label"] = (hard_label + soft_label).astype(np.float32)
+        batch["label"] = hard_label + soft_label
         # The discount indicates the discounting factor used for generating the label
         batch["discount_1"] = self.discount * np.ones_like(batch["reward_1"], dtype=np.float32)
         batch["discount_2"] = self.discount * np.ones_like(batch["reward_2"], dtype=np.float32)
