@@ -24,7 +24,16 @@ DATASET_PATH = {
 }
 
 
-class PairwiseComparisonOfflineDataset(torch.utils.data.IterableDataset):
+class MetaworldComparisonOfflineDataset(torch.utils.data.IterableDataset):
+    """
+    Metaworld dataset, borrowed from CPL.
+    label_keys:
+        rl_dir: \sum_{t} Q(s_t, a_t) - V(s_t)
+        rl_dis_dir: \sum_{t} \gamma^t (Q(s_t, a_t) - V(s_t))
+        rl_sum: \sum_{t} [r_t] + V(s_T) - V(s_0)
+        rl_dis_sum: \sum_{t} \sum_{t} [\gamma^t r_t] + \gamma^{T-1} V(s_T) - V(s_0)
+    """
+
     def __init__(
         self,
         observation_space,
@@ -32,21 +41,27 @@ class PairwiseComparisonOfflineDataset(torch.utils.data.IterableDataset):
         env: Optional[str],
         discount: float = 0.99,
         segment_length: Optional[int] = None,
-        # segment_size: int = 20,
-        # subsample_size: Optional[int] = None,
         batch_size: Optional[int] = None,
         capacity: Optional[int] = None,
         mode: str="sparse",
-        label_key: str="label",
+        label_key: str="rl_sum",
+        reward_scale: float = 1.0,
+        reward_shift: float = 0.0,
     ):
         super().__init__()
-        # assert mode in {"dense", "sparse", "score"}
+        assert env in DATASET_PATH.keys(), "Env {env} not registered for PT dataset."
+        assert label_key in {"rl_dir", "rl_dis_dir", "rl_sum", "rl_dis_sum"}, f"MetaworldComparisonOfflineDataset does not support label_key: {label_key}"
+        assert mode in {"sparse", "dense"}, f"MetaworldComparisonOfflineDataset does not support mode: {mode}"
+
         self.env_name = env
         self.mode = mode
         self.label_key = label_key
         self.discount = discount
         self.batch_size = 1 if batch_size is None else batch_size
         self.segment_length = segment_length
+
+        self.reward_scale = reward_scale
+        self.reward_shift = reward_shift
 
         path = DATASET_PATH[self.env_name]
         with open(path, "rb") as f:
@@ -67,7 +82,7 @@ class PairwiseComparisonOfflineDataset(torch.utils.data.IterableDataset):
         data = utils.remove_float64(data)
         lim = 1 - 1e-8
         data["action"] = np.clip(data["action"], a_min=-lim, a_max=lim)
-        # data["reward"] = reward_scale * data["reward"] + reward_shift
+        data["reward"] = reward_scale * data["reward"] + reward_shift
 
         # Save the data
         self.data = data
@@ -93,23 +108,21 @@ class PairwiseComparisonOfflineDataset(torch.utils.data.IterableDataset):
             start_1, end_1 = 0, self.data_segment_length
             start_2, end_2 = 0, self.data_segment_length
 
-
+        data_1_idxs, data_2_idxs = np.squeeze(data_1_idxs), np.squeeze(data_2_idxs)
         batch = {
             "obs_1": self.data["obs"][data_1_idxs, start_1:end_1],
             "obs_2": self.data["obs"][data_2_idxs, start_2:end_2],
             "action_1": self.data["action"][data_1_idxs, start_1:end_1],
             "action_2": self.data["action"][data_2_idxs, start_2:end_2],
-            "reward_1": self.data["reward"][data_1_idxs, start_1:end_1],
-            "reward_2": self.data["reward"][data_2_idxs, start_2:end_2],
-            "terminal_1": self.data["done"][data_1_idxs, start_1:end_1],
-            "terminal_2": self.data["done"][data_2_idxs, start_2:end_2]
+            "reward_1": self.data["reward"][data_1_idxs, start_1:end_1, None],
+            "reward_2": self.data["reward"][data_2_idxs, start_2:end_2, None],
         }
         hard_label = 1.0 * (self.data[self.label_key][data_1_idxs] < self.data[self.label_key][data_2_idxs])
         soft_label = 0.5 * (self.data[self.label_key][data_1_idxs] == self.data[self.label_key][data_2_idxs])
         batch["label"] = hard_label + soft_label
-        # The discount indicates the discounting factor used for generating the label
-        batch["discount_1"] = self.discount * np.ones_like(batch["reward_1"], dtype=np.float32)
-        batch["discount_2"] = self.discount * np.ones_like(batch["reward_2"], dtype=np.float32)
+
+        batch["terminal_1"] = np.zeros_like(batch["reward_1"], dtype=np.float32)
+        batch["terminal_2"] = np.zeros_like(batch["reward_2"], dtype=np.float32)
         return batch
 
     def __iter__(self):

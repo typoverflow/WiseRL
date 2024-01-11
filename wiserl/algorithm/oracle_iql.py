@@ -39,7 +39,7 @@ class OracleIQL(Algorithm):
             **network_kwargs["actor"]["kwargs"]
         )
         network["critic"] = vars(wiserl.module)[network_kwargs["critic"]["class"]](
-            input_dim=self.observation_space.shape[0],
+            input_dim=self.observation_space.shape[0]+self.action_space.shape[0],
             output_dim=1,
             **network_kwargs["critic"]["kwargs"]
         )
@@ -57,6 +57,9 @@ class OracleIQL(Algorithm):
         else:
             network["encoder"] = nn.Identity()
         self.network = nn.ModuleDict(network)
+        self.target_network = nn.ModuleDict({
+            "critic": make_target(self.network.critic)
+        })
 
     def setup_optimizers(self, optim_kwargs):
         self.optim = {}
@@ -81,27 +84,30 @@ class OracleIQL(Algorithm):
         value_kwargs.update(optim_kwargs.get("value", {}).get("kwargs", {}))
         self.optim["value"] = vars(torch.optim)[value_class](self.network.value.parameters(), **critic_kwargs)
 
+    def select_action(self, batch, deterministic: bool=True):
+        obs = batch["obs"]
+        action, *_ = self.network.actor.sample(obs, deterministic=deterministic)
+        return action.squeeze().cpu().numpy()
 
     def train_step(self, batches, step: int, total_steps: int) -> Dict:
         batch, *_ = batches
         obs = torch.cat([batch["obs_1"], batch["obs_2"]], dim=0)  # (B, S+1)
         action = torch.cat([batch["action_1"], batch["action_2"]], dim=0)  # (B, S+1)
-        discount = torch.cat((batch["discount_1"], batch["discount_2"]), dim=0)  # (B, S+1)
         reward = torch.cat([batch["reward_1"], batch["reward_2"]], dim=0)
-        terminal = torch.cat([batch["terminal_1", batch["terminal_2"]]], dim=0)
+        terminal = torch.cat([batch["terminal_1"], batch["terminal_2"]], dim=0)
 
         obs = self.network.encoder(obs)
         next_obs = obs[:, 1:].detach()
         obs = obs[:, :-1]
         action = action[:, :-1]
-        discount = discount[:, :-1]
         reward = reward[:, :-1]
+        terminal = terminal[:, :-1]
 
         with torch.no_grad():
             q_old = self.target_network.critic(obs, action)
             q_old = torch.min(q_old, dim=0)[0]
-            v_old = self.value(obs)
-            next_v_old = self.value(next_obs)
+            v_old = self.network.value(obs)
+            next_v_old = self.network.value(next_obs)
         v_pred = self.network.value(obs.detach())
         v_loss = expectile_regression(v_pred, q_old, expectile=self.expectile).mean()
         self.optim["value"].zero_grad()
@@ -118,16 +124,20 @@ class OracleIQL(Algorithm):
         advantage = q_old - v_old
         exp_advantage = (advantage / self.beta).exp().clip(max=self.max_exp_clip)
         if isinstance(self.network.actor, DeterministicActor):
-            policy_out = torch.sum((self.network.actor.sample(obs)[0] - action)**2, dim=1)
+            policy_out = torch.sum((self.network.actor.sample(obs)[0] - action)**2, dim=-1)
         elif isinstance(self.network.actor, GaussianActor):
             policy_out = - self.network.actor.evaluate(obs, action)[0]
-        actor_loss = (exp_advantage * policy_out).mean()
+        actor_loss = (exp_advantage * policy_out.unsqueeze(-1)).mean()
         self.optim["actor"].zero_grad()
         actor_loss.backward()
         self.optim["actor"].step()
 
+        # step the schedulers
+        for _, scheduler in self.schedulers.items():
+            scheduler.step()
+
         if step % self.target_freq == 0:
-            sync_target(self.network.critic, self.target_network.critic)
+            sync_target(self.network.critic, self.target_network.critic, tau=self.tau)
 
         metrics = {
             "loss/q_loss": q_loss.item(),

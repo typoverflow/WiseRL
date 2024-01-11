@@ -1,6 +1,7 @@
 import copy
 import os
 from abc import ABC, abstractmethod
+from collections import defaultdict
 from typing import Any, Dict, List, Optional, Set, Type, Union
 
 import gym
@@ -10,6 +11,7 @@ import torch.nn as nn
 import wiserl
 from wiserl.processor import Identity, Processor
 from wiserl.utils import utils
+from wiserl.utils.misc import convert_to_tensor
 
 
 class Algorithm(ABC):
@@ -45,6 +47,9 @@ class Algorithm(ABC):
         self.optim = {}
         self.schedulers = {}
         self.processor = {}
+        optim_kwargs = optim_kwargs or defaultdict(dict)
+        schedulers_kwargs = schedulers_kwargs or defaultdict(dict)
+        processor_kwargs = processor_kwargs or defaultdict(dict)
         self.setup_optimizers(optim_kwargs)
         self.setup_schedulers(schedulers_kwargs)
         self.setup_processor(processor_kwargs)
@@ -68,20 +73,6 @@ class Algorithm(ABC):
     @property
     def compiled(self) -> bool:
         return self._compiled
-
-    def __setattr__(self, name: str, value: Any) -> None:
-        # Check to see if the value is a module etc.
-        if (hasattr(self, "_save_keys") and name in self._save_keys) or (
-            hasattr(self, "_module_keys") and name in self._module_keys
-        ):
-            pass
-        elif isinstance(value, torch.nn.Parameter):
-            self._save_keys.add(name)
-        elif isinstance(value, torch.nn.Module):
-            self._module_keys.add(name)
-            if sum(p.numel() for p in value.parameters()) > 0:
-                self._save_keys.add(name)  # store if we have a module with more than zero parameters.
-        return super().__setattr__(name, value)
 
     @property
     def num_params(self):
@@ -109,6 +100,20 @@ class Algorithm(ABC):
                 for b in attr.buffers():
                     _bytes += b.nelement() * b.element_size()
         return _bytes
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        # Check to see if the value is a module etc.
+        if (hasattr(self, "_save_keys") and name in self._save_keys) or (
+            hasattr(self, "_module_keys") and name in self._module_keys
+        ):
+            pass
+        elif isinstance(value, torch.nn.Parameter):
+            self._save_keys.add(name)
+        elif isinstance(value, torch.nn.Module):
+            self._module_keys.add(name)
+            if sum(p.numel() for p in value.parameters()) > 0:
+                self._save_keys.add(name)  # store if we have a module with more than zero parameters.
+        return super().__setattr__(name, value)
 
     def to(self, device):
         for k in self.save_keys:
@@ -164,7 +169,15 @@ class Algorithm(ABC):
         pass
 
     def setup_schedulers(self, scheduler_kwargs):
-        pass
+        for optim_key, optim in self.optim.items():
+            config = scheduler_kwargs.get(optim_key, scheduler_kwargs.get("default", None))
+            if config is None:
+                continue
+            self.schedulers[optim_key] = vars(torch.optim.lr_scheduler)[config["class"]](
+                self.optim[optim_key],
+                **config["kwargs"]
+            )
+
 
     def save(self, path: str, extension: str, metadata: Optional[Dict]=None) -> None:
         """
@@ -246,68 +259,31 @@ class Algorithm(ABC):
 
         return checkpoint["metadata"]
 
-    def format_batch(self, batch: Any) -> Any:
-        # Convert items to tensor if they are not.
-        # Checking first makes sure we do not distrub memory pinning
-        if not utils.contains_tensors(batch):
-            batch = utils.to_tensor(batch)
-        if self.processor.supports_gpu:
-            # Move to CUDA first.
-            batch = utils.to_device(batch, self.device)
-            batch = self.processor(batch)
+    def format_batch(self, batches) -> Any:
+        def convert(batch):
+            if batch is None:
+                return None
+            else:
+                batch = {k: convert_to_tensor(v, self.device) for k, v in batch.items()}
+            return batch
+        if isinstance(batches, list):
+            return [convert(batch) for batch in batches]
         else:
-            batch = self.processor(batch)
-            batch = utils.to_device(batch, self.device)
-        return batch
+            return convert(batches)
 
     @abstractmethod
     def train_step(self, batches: Any, step: int, total_steps: int) -> Dict:
         """
         Train the model. Should return a dict of loggable values
         """
-        raise NotImplemented
-
-    def validation_step(self, batch: Any) -> Dict:
-        """
-        perform a validation step. Should return a dict of loggable values.
-        """
         raise NotImplementedError
 
-    def env_step(self, env: gym.Env, step: int, total_steps: int) -> Dict:
-        """
-        Perform any extra training operations. This is done before the train step is called.
-        A common use case for this would be stepping the environment etc.
-        """
-        return {}
+    @abstractmethod
+    def select_action(self, batch, *args, **kwargs):
+        raise NotImplementedError
 
-    def validation_extras(self, path: str, step: int) -> Dict:
-        """
-        Perform any extra validation operations.
-        A common usecase for this is saving visualizations etc.
-        """
-        return {}
-
-    def _predict(self, batch: Any, **kwargs) -> Any:
-        """
-        Internal prediction function, can be overridden
-        By default, we call torch.no_grad(). If this behavior isn't desired,
-        override the _predict funciton in your algorithm.
-        """
-        with torch.no_grad():
-            if len(kwargs) > 0:
-                raise ValueError("Default predict method does not accept key word args, but they were provided.")
-            pred = self.network(batch)
-        return pred
-
-    def predict(self, batch: Any, is_batched: bool = False, **kwargs) -> Any:
-        is_np = not utils.contains_tensors(batch)
-        if not is_batched:
-            # Unsqeeuze everything
-            batch = utils.unsqueeze(batch, 0)
+    def predict(self, batch: Any, deterministic: bool=True) -> Any:
         batch = self.format_batch(batch)
-        pred = self._predict(batch, **kwargs)
-        if not is_batched:
-            pred = utils.get_from_batch(pred, 0)
-        if is_np:
-            pred = utils.to_np(pred)
-        return pred
+        batch = {k: v.unsqueeze(0) for k, v in batch.items()}
+        action = self.select_action(batch, deterministic=deterministic)
+        return action

@@ -44,7 +44,7 @@ class PTComparisonOfflineDataset(torch.utils.data.IterableDataset):
     ) -> None:
         super().__init__()
         assert env in DATASET_PATH.keys(), f"Env {env} not registered for PT dataset."
-        assert label_key in {"script", "human"}, "PTComparisonOfflineDataset supports label_key \{script, human\}."
+        assert label_key in {"script", "human"}, f"PTComparisonOfflineDataset does not support label_key: {label_key}."
 
         self.env_name = env
         self.obs_shape = observation_space.shape[0]

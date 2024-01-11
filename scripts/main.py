@@ -22,6 +22,7 @@ if __name__ == "__main__":
         backup_stdout=True,
         activate=not args["debug"]
     )
+    logger.log_config(args)
     setup(args, logger)
 
     # process the environment
@@ -48,8 +49,10 @@ if __name__ == "__main__":
         env_fn=env_fn,
         eval_env_fn=eval_env_fn,
         dataset_kwargs=args["dataset"],
+        eval_kwargs=args["eval"],
         dataloader_kwargs=args["dataloader"],
-        **args["trainer_kwargs"],
-        logger=logger
+        **args["trainer"],
+        logger=logger,
+        device=args["device"]
     )
     trainer.train()

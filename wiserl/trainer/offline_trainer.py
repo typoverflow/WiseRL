@@ -12,6 +12,7 @@ from tqdm import trange
 from UtilsRL.logger import BaseLogger
 
 import wiserl.dataset
+import wiserl.eval
 
 
 class OfflineTrainer(object):
@@ -22,19 +23,15 @@ class OfflineTrainer(object):
         eval_env_fn: Optional[Callable] = None,
         dataset_kwargs: Optional[Sequence[str]] = None,
         dataloader_kwargs: Optional[Sequence[Dict]] = None,
+        eval_kwargs: Optional[dict] = None,
         total_steps: int = 1000,
         log_freq: int = 100,
         env_freq: int = 1,
         eval_freq: int = 1000,
         profile_freq: int = -1,
         checkpoint_freq: Optional[int] = None,
-        max_validation_steps: Optional[int] = None,
-        loss_metric: Optional[str] = "loss",
-        benchmark: bool = False,
-        eval_fn: Optional[Any] = None,
-        eval_kwargs: Optional[Dict] = None,
-        train_dataloader_kwargs: Optional[Dict] = None,
-        logger: Optional[BaseLogger] = None
+        logger: Optional[BaseLogger] = None,
+        device: Union[str, torch.device] = "cpu"
     ):
         # The base model
         self.algorithm = algorithm
@@ -60,6 +57,12 @@ class OfflineTrainer(object):
         self.dataset_kwargs = dataset_kwargs
         self.dataloader_kwargs = dataloader_kwargs
 
+        # evaluation
+        self.eval_kwargs = eval_kwargs
+
+        self.algorithm = self.algorithm.to(device)
+        self.device = device
+
     @property
     def env(self):
         if self._env is None and self.env_fn is not None:
@@ -75,7 +78,6 @@ class OfflineTrainer(object):
     def train(self):
         self.logger.info("Setting up datasets and dataloaders")
         self.setup_datasets_and_dataloaders()
-
 
         # start training
         self.logger.info("Training")
@@ -94,20 +96,27 @@ class OfflineTrainer(object):
 
             # do algorithm train step
             batches = [next(d) for d in self._dataloaders_iter]
-            metrics = self.algorithm.train_step(*batches, step=step, total_steps=self.total_steps)
+            batches = self.algorithm.format_batch(batches)
+            metrics = self.algorithm.train_step(batches, step=step, total_steps=self.total_steps)
 
             # log the metrics
             if step % self.log_freq == 0:
                 self.logger.log_scalars("", metrics, step=step)
 
             # run eval and validation
-            if step % self.eval_freq == 0:
+            if self.eval_freq and step % self.eval_freq == 0:
                 self.algorithm.eval()
                 eval_metrics = self.evaluate()
                 self.logger.log_scalars("", eval_metrics, step=step)
                 self.algorithm.train()
 
+            if self.checkpoint_freq and step % self.checkpoint_freq == 0:
+                checkpoint_metadata = dict(step=step)
+                self.algorithm.save(os.path.join(self.logger.output_dir, f"ckpt_{step}"), checkpoint_metadata)
+
         # clean up
+        checkpoint_metadata = dict(step=step)
+        self.algorithm.save(os.path.join(self.logger.output_dir, "ckpt_final"), checkpoint_metadata)
         if self._env is not None:
             self._env.close()
         if self._eval_env is not None:
@@ -152,3 +161,13 @@ class OfflineTrainer(object):
             self._dataloaders.append(torch.utils.data.DataLoader(ds, **dl_kwargs))
 
         self._dataloaders_iter = [iter(dl) for dl in self._dataloaders]
+
+    def evaluate(self):
+        assert not self.algorithm.training
+        if self.eval_kwargs is None:
+            return {}
+        eval_metrics = vars(wiserl.eval)[self.eval_kwargs["function"]](
+            self.eval_env, self.algorithm,
+            **self.eval_kwargs["kwargs"]
+        )
+        return eval_metrics
