@@ -17,7 +17,7 @@ class SFT(Algorithm):
         **kwargs
     ) -> None:
         super().__init__(*args, **kwargs)
-        assert bc_data in {"win", "lose", "all"}, "SFT: bc_data should be in [win, loss, all]."
+        assert bc_data in {"win", "lose", "total"}, "SFT: bc_data should be in [win, loss, all]."
         self.bc_data = bc_data
 
     def setup_network(self, network_kwargs):
@@ -61,19 +61,22 @@ class SFT(Algorithm):
         action = torch.stack([batch["action_1"], batch["action_2"]], dim=0)
         label = batch["label"]
 
-        if self.bc_data == "all":
-            obs, action = obs, action
+        if self.bc_data == "total":
+            mask = torch.stack([torch.ones_like(label), torch.ones_like(label)], dim=0)
         elif self.bc_data == "win":
-            select = (label > 0.5).long()
-            obs, action = obs[select], action[select]
+            mask = torch.stack([1-label, label], dim=0)
+            # select = (label > 0.5).long()
+            # obs, action = obs[select], action[select]
         elif self.bc_data == "lose":
-            select = (label < 0.5).long()
-            obs, action = obs[select], action[select]
+            mask = torch.stack([label, 1-label], dim=0)
+            # select = (label < 0.5).long()
+            # obs, action = obs[select], action[select]
 
         if isinstance(self.network.actor, DeterministicActor):
-            actor_loss = ((self.network.actor.sample(obs)[0]-action)**2).sum(dim=-1).mean()
+            actor_loss = ((self.network.actor.sample(obs)[0]-action)**2).sum(dim=-1)
         elif isinstance(self.network.actor, GaussianActor):
-            actor_loss = - (self.network.actor.evaluate(obs, action)[0]).mean()
+            actor_loss = - (self.network.actor.evaluate(obs, action)[0])
+        actor_loss = (actor_loss * mask.unsqueeze(-1)).sum() / mask.sum()
         self.optim["actor"].zero_grad()
         actor_loss.backward()
         self.optim["actor"].step()
