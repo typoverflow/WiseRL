@@ -76,11 +76,11 @@ class OfflineTrainer(object):
         return self._eval_env
 
     def train(self):
-        self.logger.info("Setting up datasets and dataloaders")
+        self.logger.info("Set up datasets and dataloaders")
         self.setup_datasets_and_dataloaders()
 
         # start training
-        self.logger.info("Training")
+        self.logger.info("Start Training")
         self.algorithm.train()
         if self.env_freq is not None:
             env_freq = int(self.env_freq) if self.env_freq >= 1 else 1
@@ -107,7 +107,7 @@ class OfflineTrainer(object):
             if self.eval_freq and step % self.eval_freq == 0:
                 self.algorithm.eval()
                 eval_metrics = self.evaluate()
-                self.logger.log_scalars("", eval_metrics, step=step)
+                self.logger.log_scalars("eval", eval_metrics, step=step)
                 self.algorithm.train()
 
             if self.checkpoint_freq and step % self.checkpoint_freq == 0:

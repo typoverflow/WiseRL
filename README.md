@@ -10,5 +10,5 @@ WiseRL provides unofficial and banchmarked PyTorch implementations for Offline P
 - Oracle-IQL
 - BT Model + IQL (BT-IQL)
 - Preference Transformer + IQL (PT-IQL)
-- Ccontrastive Prefereing Learning (CPL)
+- Contrastive Prefereing Learning (CPL)
 - Inverse Preference Learning (IPL)

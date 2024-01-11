@@ -12,10 +12,10 @@ from wiserl.trainer.offline_trainer import OfflineTrainer
 
 if __name__ == "__main__":
     args = parse_args(convert=False)
-    name_prefix = f"{args['algorithm']}/{args['env']}/seed{args['seed']}"
+    name_prefix = f"{args['algorithm']}/{args['name']}/{args['env']}"
     logger = CompositeLogger(
         log_dir=f"./log/{name_prefix}",
-        name=args["name"],
+        name="seed"+str(args["seed"]),
         logger_config={
             "TensorboardLogger": {},
         },
