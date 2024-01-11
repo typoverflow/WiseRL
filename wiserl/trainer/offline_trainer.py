@@ -112,11 +112,11 @@ class OfflineTrainer(object):
 
             if self.checkpoint_freq and step % self.checkpoint_freq == 0:
                 checkpoint_metadata = dict(step=step)
-                self.algorithm.save(os.path.join(self.logger.output_dir, f"ckpt_{step}"), checkpoint_metadata)
+                self.algorithm.save(self.logger.output_dir, f"step_{step}.pt", checkpoint_metadata)
 
         # clean up
         checkpoint_metadata = dict(step=step)
-        self.algorithm.save(os.path.join(self.logger.output_dir, "ckpt_final"), checkpoint_metadata)
+        self.algorithm.save(self.logger.output_dir, "final.pt", checkpoint_metadata)
         if self._env is not None:
             self._env.close()
         if self._eval_env is not None:

@@ -3,6 +3,7 @@ import functools
 import os
 import shutil
 
+import wandb
 from UtilsRL.exp import parse_args, setup
 from UtilsRL.logger import CompositeLogger
 
@@ -18,11 +19,12 @@ if __name__ == "__main__":
         name="seed"+str(args["seed"]),
         logger_config={
             "TensorboardLogger": {},
+            "WandbLogger": {**args["wandb"], "config": args, "settings": wandb.Settings(_disable_stats=True)}
         },
         backup_stdout=True,
         activate=not args["debug"]
     )
-    logger.log_config(args)
+    logger.log_config(args, type="yaml")
     setup(args, logger)
 
     # process the environment

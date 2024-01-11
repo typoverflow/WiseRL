@@ -22,7 +22,7 @@ class OracleIQL(Algorithm):
         tau: float = 0.005,
         target_freq: int = 1,
         **kwargs
-    ):
+    ) -> None:
         super().__init__(*args, **kwargs)
         self.expectile = expectile
         self.beta = beta

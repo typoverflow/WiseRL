@@ -178,8 +178,7 @@ class Algorithm(ABC):
                 **config["kwargs"]
             )
 
-
-    def save(self, path: str, extension: str, metadata: Optional[Dict]=None) -> None:
+    def save(self, path: str, name: str, metadata: Optional[Dict]=None) -> None:
         """
         Saves a checkpoint of the model and the optimizers
         """
@@ -198,18 +197,16 @@ class Algorithm(ABC):
 
         # Add the metadata
         save_dict["metadata"] = {} if metadata is None else metadata
-        save_path = os.path.join(path, extension)
-        if not save_path.endswith(".pt"):
-            save_path += ".pt"
+        os.makedirs(path, exist_ok=True)
+        save_path = os.path.join(path, name)
         torch.save(save_dict, save_path)
 
-    def load(self, checkpoint: str, strict: bool=True) -> Dict:
+    def load(self, ckpt_path: str, strict: bool=True) -> Dict:
         """
         Loads the model and its associated checkpoints.
         If we haven't created the optimizers and schedulers, do not load those.
         """
-        print("[research] loading checkpoint:", checkpoint)
-        checkpoint = torch.load(checkpoint, map_location=self.device)
+        checkpoint = torch.load(ckpt_path, map_location=self.device)
         remaining_checkpoint_keys = set(checkpoint.keys())
 
         # First load everything except for the optim
@@ -218,7 +215,7 @@ class Algorithm(ABC):
                 if strict:
                     raise ValueError("Checkpoint did not have key " + str(k))
                 else:
-                    print("[research] Warning: Checkpoint did not have key", k)
+                    print("Warning: Checkpoint did not have key", k)
                     continue
 
             if isinstance(getattr(self, k), torch.nn.Parameter):
@@ -234,7 +231,7 @@ class Algorithm(ABC):
             if strict and k not in checkpoint["optim"]:
                 raise ValueError("Strict mode was enabled, but couldn't find optimizer key")
             elif k not in checkpoint["optim"]:
-                print("[research] Warning: Checkpoint did not have optimizer key", k)
+                print("Warning: Checkpoint did not have optimizer key", k)
                 continue
             self.optim[k].load_state_dict(checkpoint["optim"][k])
         if "optim" in checkpoint:
@@ -245,7 +242,7 @@ class Algorithm(ABC):
             if strict and k not in checkpoint["schedulers"]:
                 raise ValueError("Strict mode was enabled, but couldn't find scheduler key")
             elif k not in checkpoint["schedulers"]:
-                print("[research] Warning: Checkpoint did not have scheduler key", k)
+                print("Warning: Checkpoint did not have scheduler key", k)
                 continue
             self.schedulers[k].load_state_dict(checkpoint["schedulers"][k])
         if "schedulers" in checkpoint:
@@ -255,7 +252,7 @@ class Algorithm(ABC):
         if strict and len(remaining_checkpoint_keys) > 0:
             raise ValueError("Algorithm did not have keys ", +str(remaining_checkpoint_keys))
         elif len(remaining_checkpoint_keys) > 0:
-            print("[research] Warning: Checkpoint keys", remaining_checkpoint_keys, "were not loaded.")
+            print("Warning: Checkpoint keys", remaining_checkpoint_keys, "were not loaded.")
 
         return checkpoint["metadata"]
 

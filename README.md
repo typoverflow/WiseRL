@@ -8,6 +8,7 @@
 
 WiseRL provides unofficial and banchmarked PyTorch implementations for Offline Preference-Based RL algorithms, including:
 - Oracle-IQL
+- Supervised Finetuning (SFT)
 - BT Model + IQL (BT-IQL)
 - Preference Transformer + IQL (PT-IQL)
 - Contrastive Prefereing Learning (CPL)

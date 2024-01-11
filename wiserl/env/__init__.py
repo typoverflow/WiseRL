@@ -18,7 +18,7 @@ try:
         ID = "-".join(id_parts)
         register(id=ID, entry_point="wiserl.env.metaworld:get_mw_image_env", kwargs={"env_name": env_name})
 except ImportError:
-    print("[research] Warning: Could not import MetaWorld Environments.")
+    print("Warning: Could not import MetaWorld Environments.")
 
 
 def get_env(
