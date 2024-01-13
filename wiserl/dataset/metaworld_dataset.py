@@ -14,13 +14,13 @@ DATASET_PATH = {
     "mw_door-open-v2": "datasets/mw/pref/mw_door-open-v2_ep2500_n0.3.npz",
     "mw_drawer-open-v2": "datasets/mw/pref/mw_drawer-open-v2_ep2500_n0.3.npz",
     "mw_plate-slide-v2": "datasets/mw/pref/mw_plate-slide-v2_ep2500_n0.3.npz",
-    "mw_sweep-info-v2": "datasets/mw/pref/mw_sweep-info-v2_ep2500_n0.3.npz",
+    "mw_sweep-into-v2": "datasets/mw/pref/mw_sweep-into-v2_ep2500_n0.3.npz",
     "mw_bin-picking-image-v2": "datasets/mw/pref_image/mw_bin-picking-v2_ep2500_n0.3_img64.npz",
     "mw_button-press-image-v2": "datasets/mw/pref_image/mw_button-press-v2_ep2500_n0.3_img64.npz",
     "mw_door-open-image-v2": "datasets/mw/pref_image/mw_door-open-v2_ep2500_n0.3_img64.npz",
     "mw_drawer-open-image-v2": "datasets/mw/pref_image/mw_drawer-open-v2_ep2500_n0.3_img64.npz",
     "mw_plate-slide-image-v2": "datasets/mw/pref_image/mw_plate-slide-v2_ep2500_n0.3_img64.npz",
-    "mw_sweep-info-image-v2": "datasets/mw/pref_image/mw_sweep-info-v2_ep2500_n0.3_img64.npz",
+    "mw_sweep-into-image-v2": "datasets/mw/pref_image/mw_sweep-into-v2_ep2500_n0.3_img64.npz",
 }
 
 

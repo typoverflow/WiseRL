@@ -44,7 +44,7 @@ class SFT(Algorithm):
             default_kwargs = optim_kwargs["default"]["kwargs"]
         else:
             default_class, default_kwargs = None, {}
-        actor_class = optim_kwargs.get("actor", {}).get("kwargs", None) or default_class
+        actor_class = optim_kwargs.get("actor", {}).get("class", None) or default_class
         actor_kwargs = default_kwargs.copy()
         actor_kwargs.update(optim_kwargs.get("actor", {}).get("kwargs", {}))
         actor_params = itertools.chain(self.network.actor.parameters(), self.network.encoder.parameters())

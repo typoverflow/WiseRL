@@ -18,7 +18,7 @@ class OracleIQL(Algorithm):
         expectile: float = 0.7,
         beta: float = 0.3333,
         max_exp_clip: float = 100.0,
-        discount: float=0.99,
+        discount: float = 0.99,
         tau: float = 0.005,
         target_freq: int = 1,
         **kwargs
@@ -68,18 +68,18 @@ class OracleIQL(Algorithm):
             default_kwargs = optim_kwargs["default"]["kwargs"]
         else:
             default_class, default_kwargs = None, {}
-        actor_class = optim_kwargs.get("actor", {}).get("kwargs", None) or default_class
+        actor_class = optim_kwargs.get("actor", {}).get("class", None) or default_class
         actor_kwargs = default_kwargs.copy()
         actor_kwargs.update(optim_kwargs.get("actor", {}).get("kwargs", {}))
         actor_params = itertools.chain(self.network.actor.parameters(), self.network.encoder.parameters())
         self.optim["actor"] = vars(torch.optim)[actor_class](actor_params, **actor_kwargs)
 
-        critic_class = optim_kwargs.get("critic", {}).get("kwargs", None) or default_class
+        critic_class = optim_kwargs.get("critic", {}).get("class", None) or default_class
         critic_kwargs = default_kwargs.copy()
         critic_kwargs.update(optim_kwargs.get("critic", {}).get("kwargs", {}))
         self.optim["critic"] = vars(torch.optim)[critic_class](self.network.critic.parameters(), **critic_kwargs)
 
-        value_class = optim_kwargs.get("value", {}).get("kwargs", None) or default_class
+        value_class = optim_kwargs.get("value", {}).get("class", None) or default_class
         value_kwargs = default_kwargs.copy()
         value_kwargs.update(optim_kwargs.get("value", {}).get("kwargs", {}))
         self.optim["value"] = vars(torch.optim)[value_class](self.network.value.parameters(), **critic_kwargs)
@@ -89,50 +89,67 @@ class OracleIQL(Algorithm):
         action, *_ = self.network.actor.sample(obs, deterministic=deterministic)
         return action.squeeze().cpu().numpy()
 
-    def train_step(self, batches, step: int, total_steps: int) -> Dict:
+    def v_loss(self, encoded_obs, q_old):
+        v_pred = self.network.value(encoded_obs.detach())
+        v_loss = expectile_regression(v_pred, q_old, expectile=self.expectile).mean()
+        return v_loss, v_pred
+
+    def actor_loss(self, encoded_obs, action, q_old, v):
+        with torch.no_grad():
+            advantage = q_old - v
+        exp_advantage = (advantage / self.beta).exp().clip(max=self.max_exp_clip)
+        if isinstance(self.network.actor, DeterministicActor):
+            policy_out = torch.sum((self.network.actor.sample(encoded_obs)[0] - action)**2, dim=-1)
+        elif isinstance(self.network.actor, GaussianActor):
+            policy_out = - self.network.actor.evaluate(encoded_obs, action)[0]
+        actor_loss = (exp_advantage * policy_out.unsqueeze(-1)).mean()
+        return actor_loss, advantage
+
+    def q_loss(self, encoded_obs, action, next_encoded_obs, reward, terminal):
+        with torch.no_grad():
+            target_q = self.network.value(next_encoded_obs)
+            target_q = reward + self.discount * (1-terminal) * target_q
+        q_pred = self.network.critic(encoded_obs.detach(), action)
+        q_loss = (q_pred - target_q.unsqueeze(0)).pow(2).sum(0).mean()
+        return q_loss, q_pred
+
+    def train_step(self, batches, step:int, total_steps: int):
         batch, *_ = batches
         obs = torch.cat([batch["obs_1"], batch["obs_2"]], dim=0)  # (B, S+1)
         action = torch.cat([batch["action_1"], batch["action_2"]], dim=0)  # (B, S+1)
         reward = torch.cat([batch["reward_1"], batch["reward_2"]], dim=0)
         terminal = torch.cat([batch["terminal_1"], batch["terminal_2"]], dim=0)
 
-        obs = self.network.encoder(obs)
-        next_obs = obs[:, 1:].detach()
-        obs = obs[:, :-1]
-        action = action[:, :-1]
-        reward = reward[:, :-1]
-        terminal = terminal[:, :-1]
+        encoded_obs = self.network.encoder(obs)
 
         with torch.no_grad():
-            q_old = self.target_network.critic(obs, action)
+            q_old = self.target_network.critic(encoded_obs, action)
             q_old = torch.min(q_old, dim=0)[0]
-            v_old = self.network.value(obs)
-            next_v_old = self.network.value(next_obs)
-        v_pred = self.network.value(obs.detach())
-        v_loss = expectile_regression(v_pred, q_old, expectile=self.expectile).mean()
+
+        # compute the loss for value network
+        v_loss, v_pred = self.v_loss(encoded_obs, q_old)
         self.optim["value"].zero_grad()
         v_loss.backward()
         self.optim["value"].step()
 
-        target_q = reward + self.discount * (1-terminal) * next_v_old
-        q_pred = self.network.critic(obs, action)
-        q_loss = (q_pred - target_q.unsqueeze(0)).pow(2).sum(0).mean()
-        self.optim["critic"].zero_grad()
-        q_loss.backward()
-        self.optim["critic"].step()
-
-        advantage = q_old - v_old
-        exp_advantage = (advantage / self.beta).exp().clip(max=self.max_exp_clip)
-        if isinstance(self.network.actor, DeterministicActor):
-            policy_out = torch.sum((self.network.actor.sample(obs)[0] - action)**2, dim=-1)
-        elif isinstance(self.network.actor, GaussianActor):
-            policy_out = - self.network.actor.evaluate(obs, action)[0]
-        actor_loss = (exp_advantage * policy_out.unsqueeze(-1)).mean()
+        # compute the loss for actor
+        actor_loss, advantage = self.actor_loss(encoded_obs, action, q_old, v_pred.detach())
         self.optim["actor"].zero_grad()
         actor_loss.backward()
         self.optim["actor"].step()
 
-        # step the schedulers
+        # compute the loss for q, offset by 1
+        q_loss, q_pred = self.q_loss(
+            encoded_obs[:, :-1],
+            action[:, :-1],
+            encoded_obs[:, 1:],
+            reward[:, :-1],
+            terminal[:, :-1]
+        )
+        self.optim["critic"].zero_grad()
+        q_loss.backward()
+        self.optim["critic"].step()
+
         for _, scheduler in self.schedulers.items():
             scheduler.step()
 

@@ -34,7 +34,7 @@ network:
   actor:
     class: SquashedDeterministicActor
     kwargs:
-      dropout: 0.0
+      dropout: 0.25
       hidden_dims: [512, 512]
   critic:
     class: Critic
@@ -54,7 +54,7 @@ dataset:
     label_key: "rl_sum"
     segment_length: null
     batch_size: 96
-    capacity: 2500
+    capacity: 10000
     mode: sparse  # Choices: {sparse, dense}
     discount: 0.99
 dataloader:
