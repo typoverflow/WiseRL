@@ -84,13 +84,13 @@ class EnsembleLinear(nn.Module):
         self.reset_parameters()
 
     def reset_parameters(self):
-        for i in range(self.ensemble_size):
-            torch.nn.init.kaiming_uniform_(self.weight[..., i], a=math.sqrt(5))
+        # Naively adapting the torch default initialization to EnsembleMLP results in
+        # bad performance and strange initial output.
+        # So we used the initialization strategy by https://github.com/jhejna/cpl/blob/a644e8bbcc1f32f0d4e1615c5db4f6077d6d2605/research/networks/common.py#L75
+        std = 1.0 / math.sqrt(self.in_features)
+        nn.init.uniform_(self.weight, -std, std)
         if self.add_bias:
-            for i in range(self.ensemble_size):
-                fan_in, _ = torch.nn.init._calculate_fan_in_and_fan_out(self.weight[..., i])
-                bound = 1 / math.sqrt(fan_in) if fan_in > 0 else 0
-                torch.nn.init.uniform_(self.bias[..., i], -bound, bound)
+            nn.init.uniform_(self.bias, -std, std)
 
     def forward(self, input: torch.Tensor):
         if self.share_input:
