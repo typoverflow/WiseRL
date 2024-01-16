@@ -17,7 +17,7 @@ class BTIQL(OracleIQL):
         *args,
         expectile: float = 0.7,
         beta: float = 0.3333,
-        max_exp_clip: float = 0.005,
+        max_exp_clip: float = 100.0,
         discount: float = 0.99,
         tau: float = 0.005,
         target_freq: int = 1,
@@ -25,7 +25,16 @@ class BTIQL(OracleIQL):
         reward_reg: float = 0.0,
         **kwargs
     ) -> None:
-        super().__init__(*args, expectile, beta, max_exp_clip, discount, tau, target_freq)
+        super().__init__(
+            *args,
+            expectile=expectile,
+            beta=beta,
+            max_exp_clip=max_exp_clip,
+            discount=discount,
+            tau=tau,
+            target_freq=target_freq,
+            **kwargs
+        )
         self.reward_steps = reward_steps
         self.reward_reg = reward_reg
 
@@ -53,19 +62,83 @@ class BTIQL(OracleIQL):
         self.optim["reward"] = vars(torch.optim)[reward_class](self.network.reward.parameters(), **reward_kwargs)
 
     def select_action(self, batch, deterministic: bool=True):
-        super().select_action(batch, deterministic)
+        return super().select_action(batch, deterministic)
 
     def train_step(self, batches, step: int, total_steps: int) -> Dict:
         batch, *_ = batches
         obs = torch.cat([batch["obs_1"], batch["obs_2"]], dim=0)  # (B, S+1)
         action = torch.cat([batch["action_1"], batch["action_2"]], dim=0)  # (B, S+1)
+        terminal = torch.cat([batch["terminal_1"], batch["terminal_2"]], dim=0)
+
+        encoded_obs = self.network.encoder(obs)
 
         if step < self.reward_steps:
             self.network.reward.train()
-            reward = self.network.reward(obs, action)
-            r1, r2 = torch.chunk(reward.sum(dim=-2), 2, dim=-3)
+            reward = self.network.reward(torch.cat([obs, action], dim=-1))
+            r1, r2 = torch.chunk(reward.sum(dim=2), 2, dim=1)
             logits = r2 - r1
+            labels = batch["label"].float().unsqueeze(0).unsqueeze(-1).expand_as(logits)
 
-            reward_loss = self.reward_criterion(logits, batch["label"]).mean()
+            reward_loss = self.reward_criterion(logits, labels).mean()
+            reg_loss = (r1**2).mean() + (r2**2).mean()
             with torch.no_grad():
-                reward_accuracy = None
+                reward_accuracy = ((r2 > r1) == torch.round(labels)).float().mean()
+
+            self.optim["reward"].zero_grad()
+            (reward_loss + self.reward_reg * reg_loss).backward()
+            self.optim["reward"].step()
+
+            reward = reward.detach().mean(dim=0)
+        else:
+            reward = self.network.reward(torch.cat([obs, action], dim=-1)).detach().mean(dim=0)
+
+        with torch.no_grad():
+            q_old = self.target_network.critic(encoded_obs, action)
+            q_old = torch.min(q_old, dim=0)[0]
+
+        # compute the loss for value network
+        v_loss, v_pred = self.v_loss(encoded_obs, q_old)
+        self.optim["value"].zero_grad()
+        v_loss.backward()
+        self.optim["value"].step()
+
+        # compute the loss for actor
+        actor_loss, advantage = self.actor_loss(encoded_obs, action, q_old, v_pred.detach())
+        self.optim["actor"].zero_grad()
+        actor_loss.backward()
+        self.optim["actor"].step()
+
+        # compute the loss for q, offset by 1
+        q_loss, q_pred = self.q_loss(
+            encoded_obs[:, :-1],
+            action[:, :-1],
+            encoded_obs[:, 1:],
+            reward[:, :-1],
+            terminal[:, :-1]
+        )
+        self.optim["critic"].zero_grad()
+        q_loss.backward()
+        self.optim["critic"].step()
+
+        for _, scheduler in self.schedulers.items():
+            scheduler.step()
+
+        if step % self.target_freq == 0:
+            sync_target(self.network.critic, self.target_network.critic, tau=self.tau)
+
+        metrics = {
+            "loss/q_loss": q_loss.item(),
+            "loss/v_loss": v_loss.item(),
+            "loss/actor_loss": actor_loss.item(),
+            "misc/q_pred": q_pred.mean().item(),
+            "misc/v_pred": v_pred.mean().item(),
+            "misc/advantage": advantage.mean().item()
+        }
+        if step < self.reward_steps:
+            metrics.update({
+                "loss/reward_loss": reward_loss.item(),
+                "loss/reward_reg_loss": reg_loss.item(),
+                "misc/reward_acc": reward_accuracy.item(),
+                "misc/reward_value": reward.mean().item()
+            })
+        return metrics

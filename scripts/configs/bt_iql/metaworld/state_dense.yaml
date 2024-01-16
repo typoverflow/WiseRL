@@ -1,0 +1,90 @@
+algorithm: BTIQL
+algorithm_kwargs:
+  beta: 0.3333
+  expectile: 0.7
+  max_exp_clip: 100.0
+  reward_steps: 50000
+  reward_reg: 0.0
+
+checkpoint: null
+seed: 0
+name: metaworld
+debug: false
+device: null
+wandb:
+  activate: false
+  entity: null
+  project: null
+
+# environment choices: {
+#   mw_bin-picking-v2, mw_button-press-v2, mw_door-open-v2,
+#   mw_drarwer-open-v2, mw_plate-slide-v2, mw_sweep-into-v2
+# }
+
+env: mw_drawer-open-v2
+env_kwargs:
+env_wrapper:
+env_wrapper_kwargs:
+
+optim:
+  default:
+    class: Adam
+    kwargs:
+      lr: 0.0003
+
+network:
+  reward:
+    class: EnsembleMLP
+    kwargs:
+      ensemble_size: 1
+      hidden_dims: [512, 512]
+  actor:
+    class: SquashedDeterministicActor
+    kwargs:
+      dropout: 0.25
+      hidden_dims: [512, 512]
+  critic:
+    class: Critic
+    kwargs:
+      ensemble_size: 2
+      hidden_dims: [512, 512]
+  value:
+    class: Critic
+    kwargs:
+      ensemble_size: 1
+      hidden_dims: [512, 512]
+
+dataset:
+  class: MetaworldComparisonOfflineDataset
+  kwargs:
+    env: mw_drawer-open-v2
+    label_key: rl_sum
+    segment_length: null
+    batch_size: 96
+    capacity: 2500
+    mode: dense  # Choices: {sparse, dense}
+    discount: 0.99
+dataloader:
+  num_workers: 0  # use the main thread to sample data
+  batch_size: null  # do not merge the data along batch axis
+
+trainer:
+  env_freq: null
+  total_steps: 550000
+  log_freq: 500
+  profile_freq: 500
+  eval_freq: 5000
+
+eval:
+  function: eval_metaworld
+  kwargs:
+    num_ep: 10
+    deterministic: true
+
+schedulers:
+  actor:
+    class: CosineAnnealingLR
+    kwargs:
+      T_max: 500000
+
+processor: null
