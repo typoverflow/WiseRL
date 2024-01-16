@@ -8,7 +8,7 @@ algorithm_kwargs:
 
 checkpoint: null
 seed: 0
-name: metaworld
+name: state_dense
 debug: false
 device: null
 wandb:

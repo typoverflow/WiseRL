@@ -1,12 +1,10 @@
-algorithm: OracleIQL
+algorithm: SFT
 algorithm_kwargs:
-  beta: 0.3333
-  expectile: 0.7
-  max_exp_clip: 100.0
+  bc_data: win
 
 checkpoint: null
 seed: 0
-name: state_dense
+name: state_sparse
 debug: false
 device: null
 wandb:
@@ -34,18 +32,8 @@ network:
   actor:
     class: SquashedDeterministicActor
     kwargs:
-      dropout: 0.25
+      dropout: 0.0
       hidden_dims: [512, 512]
-  critic:
-    class: Critic
-    kwargs:
-      ensemble_size: 2
-      hidden_dims: [256, 256]
-  value:
-    class: Critic
-    kwargs:
-      ensemble_size: 1
-      hidden_dims: [256, 256]
 
 dataset:
   class: MetaworldComparisonOfflineDataset
@@ -54,8 +42,8 @@ dataset:
     label_key: rl_sum
     segment_length: null
     batch_size: 96
-    capacity: 2500
-    mode: dense  # Choices: {sparse, dense}
+    capacity: 10000
+    mode: sparse  # Choices: {sparse, dense}
     discount: 0.99
 dataloader:
   num_workers: 0  # use the main thread to sample data

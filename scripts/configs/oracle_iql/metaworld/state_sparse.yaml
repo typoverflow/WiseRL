@@ -6,7 +6,7 @@ algorithm_kwargs:
 
 checkpoint: null
 seed: 0
-name: metaworld
+name: state_sparse
 debug: false
 device: null
 wandb:
@@ -51,7 +51,7 @@ dataset:
   class: MetaworldComparisonOfflineDataset
   kwargs:
     env: mw_drawer-open-v2
-    label_key: "rl_sum"
+    label_key: rl_sum
     segment_length: null
     batch_size: 96
     capacity: 10000
