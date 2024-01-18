@@ -49,7 +49,7 @@ class MetaworldComparisonOfflineDataset(torch.utils.data.IterableDataset):
         reward_shift: float = 0.0,
     ):
         super().__init__()
-        assert env in DATASET_PATH.keys(), "Env {env} not registered for PT dataset."
+        assert env in DATASET_PATH.keys(), f"Env {env} not registered for PT dataset."
         assert label_key in {"rl_dir", "rl_dis_dir", "rl_sum", "rl_dis_sum"}, f"MetaworldComparisonOfflineDataset does not support label_key: {label_key}"
         assert mode in {"sparse", "dense"}, f"MetaworldComparisonOfflineDataset does not support mode: {mode}"
 
