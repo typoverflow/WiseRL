@@ -1,0 +1,94 @@
+algorithm: IPL_IQL
+algorithm_kwargs:
+  beta: 0.3333
+  expectile: 0.7
+  chi2_coeff: 0.5
+  chi2_replay_weight: 0.5
+  policy_replay_weight: 0.5
+  value_replay_weight: 0.5
+  tau: 0.005
+  max_exp_clip: 100.0
+
+checkpoint: null
+seed: 0
+name: state_dense
+debug: false
+device: null
+wandb:
+  activate: false
+  entity: null
+  project: null
+
+# environment choices: {
+#   mw_bin-picking-v2, mw_button-press-v2, mw_door-open-v2,
+#   mw_drarwer-open-v2, mw_plate-slide-v2, mw_sweep-into-v2
+# }
+
+env: mw_drawer-open-v2
+env_kwargs:
+env_wrapper:
+env_wrapper_kwargs:
+
+optim:
+  default:
+    class: Adam
+    kwargs:
+      lr: 0.0003
+
+network:
+  actor:
+    class: SquashedGaussianActor
+    kwargs:
+      hidden_dims: [256, 256]
+      reparameterize: false
+      conditioned_logstd: false
+      logstd_min: -5
+      logstd_max: 2
+  critic:
+    class: Critic
+    kwargs:
+      ensemble_size: 2
+      hidden_dims: [256, 256]
+  value:
+    class: Critic
+    kwargs:
+      ensemble_size: 1
+      hidden_dims: [256, 256]
+
+dataset:
+  - class: D4RLOfflineDataset
+    kwargs:
+      env: hopper-medium-replay-v2
+      batch_size: 256
+      mode: transition
+      reward_normalize: true
+  - class: IPLComparisonOfflineDataset
+    kwargs:
+      env: hopper-medium-replay-v2
+      batch_size: 8
+      segment_length: 64 # CHECK: can this be sub-sampled?
+
+dataloader:
+  num_workers: 0  # use the main thread to sample data
+  batch_size: null  # do not merge the data along batch axis
+
+trainer:
+  env_freq: null
+  total_steps: 1000000
+  log_freq: 500
+  profile_freq: 500
+  eval_freq: 5000
+
+eval:
+  function: eval_d4rl
+  kwargs:
+    num_ep: 10
+    deterministic: true
+
+schedulers:
+  # actor:
+  #   class: CosineAnnealingLR
+  #   kwargs:
+  #     T_max: 500000
+
+processor: null

@@ -3,151 +3,204 @@ from typing import Any, Optional
 import d4rl
 import gym
 import numpy as np
+import torch
 
-from .replay_buffer import HindsightReplayBuffer, ReplayBuffer
+from wiserl.utils.functional import discounted_cum_sum
 
 
-class D4RLDataset(ReplayBuffer):
-    """
-    This class is designed to be able to produce the same dataset configs used in the IQL paper.
-    See https://github.com/ikostrikov/implicit_q_learning
-    """
+def pad_along_axis(
+    arr: np.ndarray, pad_to: int, axis: int = 0, fill_value: float = 0.0
+) -> np.ndarray:
+    pad_size = pad_to - arr.shape[axis]
+    if pad_size <= 0:
+        return arr
 
+    npad = [(0, 0)] * arr.ndim
+    npad[axis] = (0, pad_size)
+    return np.pad(arr, pad_width=npad, mode="constant", constant_values=fill_value)
+
+class D4RLOfflineDataset(torch.utils.data.IterableDataset):
     def __init__(
         self,
         observation_space: gym.Space,
         action_space: gym.Space,
-        name: str,
-        d4rl_path: Optional[str] = None,  # where to save D4RL files.
-        use_rtg: bool = False,
-        use_timesteps: bool = False,
-        normalize_reward: bool = False,
-        reward_scale: float = 1.0,
-        reward_shift: float = 0.0,
-        action_eps: float = 0.00001,
-        **kwargs,
-    ) -> None:
-        self.env_name = name
+        env: str,
+        segment_length: Optional[int] = None,
+        batch_size: Optional[int] = None,
+        capacity: Optional[int] = None,
+        mode: str="transition",
+        reward_scale: Optional[float] = None,
+        reward_shift: Optional[float] = None,
+        reward_normalize: bool = False,
+    ):
+        super().__init__()
+        assert mode in {"transition", "trajectory"}, "Supported mode for D4RLOfflineDataset: \{transition, trajectory\}."
+        assert reward_scale is None == reward_shift is None, "reward_scale and reward_shift should be set simultaneously."
+        assert not reward_normalize or reward_shift is None, "reward scale & shift and reward normalize can not be set simultaneously."
+
+        self.env_name = env
+        self.mode = mode
+        self.batch_size = 1 if batch_size is None else batch_size
+        self.segment_length = segment_length
+        self.capacity = capacity
+
         self.reward_scale = reward_scale
         self.reward_shift = reward_shift
-        self.normalize_reward = normalize_reward
-        self.action_eps = action_eps
-        self.use_rtg = use_rtg
-        self.use_timesteps = use_timesteps
-        if d4rl_path is not None:
-            d4rl.set_dataset_path(d4rl_path)
-        super().__init__(observation_space, action_space, **kwargs)
+        self.reward_normalize = reward_normalize
 
-    def _data_generator(self):
+        self.load_dataset()
+
+    def __len__(self):
+        return self.data_size
+
+    def __iter__(self):
+        while True:
+            if self.mode == "transition" or (self.mode == "trajectory" and self.sample_full):
+                idxs = np.random.randint(0, self.data_size, size=self.batch_size)
+                idxs = np.squeeze(idxs)
+                yield {
+                    "obs": self.data["obs"][idxs],
+                    "action": self.data["action"][idxs],
+                    "next_obs": self.data["next_obs"][idxs],
+                    "reward": self.data["reward"][idxs],
+                    "terminal": self.data["terminal"][idxs],
+                    "mask": self.data["mask"][idxs]
+                }
+            else :
+                sample = []
+                for _ in range(self.batch_size):
+                    traj_idx = np.random.choice(self.data_size, p=self.sample_prob)
+                    start_idx = np.random.choice(self.traj_len[traj_idx])
+                    s = {k: v[traj_idx, start_idx:start_idx+self.segment_length] for k, v in self.data.items()}
+                    s["timestep"] = np.arange(start_idx, start_idx+self.segment_length)
+                    sample.append(s)
+                if len(sample) == 1: yield sample[0]
+                else:
+                    yield {
+                        "obs": np.stack([s["obs"] for s in sample], axis=0),
+                        "action": np.stack([s["action"] for s in sample], axis=0),
+                        "next_obs": np.stack([s["next_obs"] for s in sample], axis=0),
+                        "reward": np.stack([s["reward"] for s in sample], axis=0),
+                        "terminal": np.stack([s["terminal"] for s in sample], axis=0),
+                        "return": np.stack([s["return"] for s in sample], axis=0),
+                        "mask": np.stack([s["mask"] for s in sample], axis=0),
+                        "timestep": np.stack([s["timestep"] for s in sample], axis=0),
+                    }
+
+    def load_dataset(self):
         env = gym.make(self.env_name)
         dataset = env.get_dataset()
 
-        def get_done(i, ep_step=None):
-            nonlocal dataset, env
-            done = False
-            if "ant" not in self.env_name:
-                # use terminals
-                done = done or dataset["terminals"][i]
-            if "timeouts" in dataset:
-                done = done or dataset["timeouts"][i]
-            elif ep_step is not None:
-                done = done or (episode_step == env._max_episode_steps - 1)
-            return done
-
-        # Compute dataset normalization as in https://github.com/ikostrikov/implicit_q_learning
-        if self.normalize_reward:
-            ep_rewards = []
-            ep_reward, ep_length = 0, 0
-            for i in range(len(dataset["observations"])):
-                ep_reward += dataset["rewards"][i]
-                done = get_done(i, ep_length)
-                ep_length += 1
-                if done:
-                    ep_rewards.append(ep_reward)
-                    ep_reward, ep_length = 0, 0
-            min_reward, max_reward = min(ep_rewards), max(ep_rewards)
-            print("[research] Normalized D4RL range:", min_reward, max_reward)
-            self.reward_scale *= env._max_episode_steps / (max_reward - min_reward)
-
-        # Lots of this code was borrowed from https://github.com/rail-berkeley/d4rl/blob/master/d4rl/__init__.py
+        N = dataset["rewards"].shape[0]
         obs_ = []
-        action_ = [self.dummy_action]
-        reward_ = [0.0]
-        done_ = [False]
-        discount_ = [1.0]
+        next_obs_ = []
+        action_ = []
+        reward_ = []
+        terminal_ = []
+        end_ = []
+        ep_reward_ = []
 
+        use_timeouts = "timeouts" in dataset
         episode_step = 0
-        for i in range(dataset["rewards"].shape[0]):
+        episode_reward = 0
+        for i in range(N-1):
             obs = dataset["observations"][i].astype(np.float32)
+            next_obs = dataset["observations"][i+1].astype(np.float32)
             action = dataset["actions"][i].astype(np.float32)
             reward = dataset["rewards"][i].astype(np.float32)
             terminal = bool(dataset["terminals"][i])
-            done = get_done(i, episode_step)
-
+            end = False
+            episode_step += 1
+            episode_reward += reward
+            if use_timeouts:
+                final_timestep = dataset["timeouts"][i]
+            else:
+                final_timestep = (episode_step == env._max_episode_steps)
+            if final_timestep:
+                if not terminal:
+                    end_[-1] = True
+                    ep_reward_.append(episode_reward - reward)
+                    episode_step = 0
+                    episode_reward = 0
+                    continue
+            if final_timestep or terminal:
+                end = True
+                ep_reward_.append(episode_reward)
+                episode_step = 0
+                episode_reward = 0
             obs_.append(obs)
+            next_obs_.append(next_obs)
             action_.append(action)
             reward_.append(reward)
-            discount_.append(1 - float(terminal))
-            done_.append(done)
-
-            episode_step += 1
-
-            if done:
-                if "next_observations" in dataset:
-                    obs_.append(dataset["next_observations"][i].astype(np.float32))
-                else:
-                    # We need to do somethign to pad to the full length.
-                    # The default solution is to get rid of this transtion
-                    # but we need a transition with the terminal flag for our replay buffer
-                    # implementation to work.
-                    # Since we always end up masking this out anyways, it shouldn't matter and we can just repeat
-                    obs_.append(dataset["observations"][i].astype(np.float32))
-
-                obs_ = np.array(obs_)
-                action_ = np.array(action_)
-                if self.action_eps > 0.0:
-                    action_ = np.clip(action_, -1.0 + self.action_eps, 1.0 - self.action_eps)
-                reward_ = np.array(reward_).astype(np.float32) * self.reward_scale + self.reward_shift
-                discount_ = np.array(discount_).astype(np.float32)
-                done_ = np.array(done_, dtype=np.bool_)
-                kwargs = {}
-
-                # Support Decision Transformer.
-                if self.use_rtg:
-                    # Compute reward to go
-                    rtg = np.zeros_like(reward_, dtype=np.float32)
-                    rtg[-1] = reward_[-1]
-                    for t in reversed(range(reward_.shape[0] - 1)):
-                        rtg[t] = reward_[t] + self.discount * rtg[t + 1]
-                    kwargs["rtg"] = rtg
-
-                if self.use_timesteps:
-                    kwargs["timestep"] = np.arange(len(reward_), dtype=np.int64)
-
-                yield (obs_, action_, reward_, done_, discount_, kwargs)
-
-                # reset the episode trackers
-                episode_step = 0
-                obs_ = []
-                action_ = [self.dummy_action]
-                reward_ = [0.0]
-                done_ = [False]
-                discount_ = [1.0]
-
-        # Finally clean up the environment
-        del dataset
+            terminal_.append(terminal)
+            end_.append(end)
+        end_[-1] = True
         del env
 
-    def add(
-        self,
-        obs: Any,
-        action: Optional[Any] = None,
-        reward: Optional[Any] = None,
-        done: Optional[Any] = None,
-        discount: Optional[Any] = None,
-        **kwargs,
-    ) -> None:
-        # Make sure to consistently process the environment reward.
-        if reward is not None:
-            reward = reward * self.reward_scale + self.reward_shift
-        return super().add(obs, action, reward, done, discount, **kwargs)
+        data = {
+            "obs": np.asarray(obs_),
+            "action": np.asarray(action_),
+            "next_obs": np.asarray(next_obs_),
+            "reward": np.asarray(reward_)[..., None],
+            "terminal": np.asarray(terminal_)[..., None],
+            "mask": np.ones([len(obs_), 1], dtype=np.float32)
+        }
+
+        if self.reward_normalize:
+            min_, max_ = min(ep_reward_), max(ep_reward_)
+            data["reward"] = data["reward"] * env._max_episode_steps / (max_-min_)
+        if self.reward_shift:
+            data["reward"] = data["reward"] * self.reward_scale + self.reward_shift
+
+        if self.mode == "transition":
+            self.data_size = len(obs_)
+            if self.capacity is not None:
+                if self.capacity > self.data_size:
+                    print(f"[Warning]: capacity {self.capacity} exceeds dataset size {self.data_size}")
+                self.data_size = min(self.data_size, self.capacity)
+                data = {
+                    k: v[:self.data_size] for k, v in data.items()
+                }
+            self.data = data
+        elif self.mode == "trajectory":
+            traj, traj_len = [], []
+            traj_start = 0
+            for i in range(len(reward_)):
+                if end_[i]:
+                    episode_data = {
+                        k: v[traj_start:i+1] for k, v in data.items()
+                    }
+                    episode_data["return"] = discounted_cum_sum(episode_data["reward"], 1.0)
+                    traj.append(episode_data)
+                    traj_len.append(i+1-traj_start)
+                    traj_start = i+1
+            self.traj_len = np.asarray(traj_len)
+            self.data_size = len(self.traj_len)
+            if self.capacity is not None:
+                if self.capacity > self.data_size:
+                    print(f"[Warning]: capacity {self.capacity} exceeds dataset size {self.data_size}")
+                self.data_size = min(self.data_size, self.capacity)
+                traj = traj[:self.data_size]
+                self.traj_len = self.traj_len[:self.data_size]
+
+            if self.segment_length is None:
+                self.max_len = self.traj_len.max()
+                self.segment_length = self.max_len
+                self.sample_full = True
+            else:
+                self.max_len = self.traj_len.max() + self.segment_length - 1
+                self.sample_prob = self.traj_len / self.traj_len.sum()
+                self.sample_full = False
+
+            for i_traj in range(self.data_size):
+                for _key, _value in traj[i_traj].items():
+                    traj[i_traj][_key] = pad_along_axis(_value, pad_to=self.max_len)
+            self.data = {
+                "obs": np.asarray([t["obs"] for t in traj]),
+                "action": np.asarray([t["action"] for t in traj]),
+                "next_obs": np.asarray([t["next_obs"] for t in traj]),
+                "reward": np.asarray([t["reward"] for t in traj]),
+                "terminal": np.asarray([t["terminal"] for t in traj]),
+                "return": np.asarray([t["return"] for t in traj]),
+                "mask": np.asarray([t["mask"] for t in traj]),
+            }
