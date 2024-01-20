@@ -89,29 +89,29 @@ class OracleIQL(Algorithm):
         action, *_ = self.network.actor.sample(obs, deterministic=deterministic)
         return action.squeeze().cpu().numpy()
 
-    def v_loss(self, encoded_obs, q_old):
+    def v_loss(self, encoded_obs, q_old, reduce=True):
         v_pred = self.network.value(encoded_obs.detach())
-        v_loss = expectile_regression(v_pred, q_old, expectile=self.expectile).mean()
-        return v_loss, v_pred
+        v_loss = expectile_regression(v_pred, q_old, expectile=self.expectile)
+        return v_loss.mean() if reduce else v_loss, v_pred
 
-    def actor_loss(self, encoded_obs, action, q_old, v):
+    def actor_loss(self, encoded_obs, action, q_old, v, reduce=True):
         with torch.no_grad():
             advantage = q_old - v
         exp_advantage = (advantage / self.beta).exp().clip(max=self.max_exp_clip)
         if isinstance(self.network.actor, DeterministicActor):
-            policy_out = torch.sum((self.network.actor.sample(encoded_obs)[0] - action)**2, dim=-1)
+            policy_out = torch.sum((self.network.actor.sample(encoded_obs)[0] - action)**2, dim=-1, keepdim=True)
         elif isinstance(self.network.actor, GaussianActor):
             policy_out = - self.network.actor.evaluate(encoded_obs, action)[0]
-        actor_loss = (exp_advantage * policy_out.unsqueeze(-1)).mean()
-        return actor_loss, advantage
+        actor_loss = (exp_advantage * policy_out)
+        return actor_loss.mean() if reduce else actor_loss, advantage
 
-    def q_loss(self, encoded_obs, action, next_encoded_obs, reward, terminal):
+    def q_loss(self, encoded_obs, action, next_encoded_obs, reward, terminal, reduce=True):
         with torch.no_grad():
             target_q = self.network.value(next_encoded_obs)
             target_q = reward + self.discount * (1-terminal) * target_q
         q_pred = self.network.critic(encoded_obs.detach(), action)
-        q_loss = (q_pred - target_q.unsqueeze(0)).pow(2).sum(0).mean()
-        return q_loss, q_pred
+        q_loss = (q_pred - target_q.unsqueeze(0)).pow(2).sum(0)
+        return q_loss.mean() if reduce else q_loss, q_pred
 
     def train_step(self, batches, step:int, total_steps: int):
         batch, *_ = batches

@@ -69,7 +69,7 @@ class EvalMetricTracker(object):
 
 
 @torch.no_grad()
-def eval_metaworld(
+def eval_offline(
     env: gym.Env,
     algorithm: Algorithm,
     num_ep: int=10,
