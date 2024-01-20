@@ -135,7 +135,6 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
             terminal_.append(terminal)
             end_.append(end)
         end_[-1] = True
-        del env
 
         data = {
             "obs": np.asarray(obs_),
@@ -204,3 +203,4 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
                 "return": np.asarray([t["return"] for t in traj]),
                 "mask": np.asarray([t["mask"] for t in traj]),
             }
+        del env

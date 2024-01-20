@@ -5,6 +5,7 @@ from collections import defaultdict
 from typing import Any, Dict, List, Optional, Set, Type, Union
 
 import gym
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -257,16 +258,22 @@ class Algorithm(ABC):
         return checkpoint["metadata"]
 
     def format_batch(self, batches) -> Any:
-        def convert(batch):
+        def convert(data):
+            if data.dtype == np.float64:
+                data = data.astype(np.float32)
+            return convert_to_tensor(data, self.device)
+
+        def convert_batch(batch):
             if batch is None:
                 return None
             else:
-                batch = {k: convert_to_tensor(v, self.device) for k, v in batch.items()}
+                batch = {k: convert(v) for k, v in batch.items()}
             return batch
+
         if isinstance(batches, list):
-            return [convert(batch) for batch in batches]
+            return [convert_batch(batch) for batch in batches]
         else:
-            return convert(batches)
+            return convert_batch(batches)
 
     @abstractmethod
     def train_step(self, batches: Any, step: int, total_steps: int) -> Dict:
