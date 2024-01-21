@@ -77,7 +77,7 @@ class BTIQL(OracleIQL):
             reward = self.network.reward(torch.cat([obs, action], dim=-1))
             r1, r2 = torch.chunk(reward.sum(dim=2), 2, dim=1)
             logits = r2 - r1
-            labels = batch["label"].float().unsqueeze(0).unsqueeze(-1).expand_as(logits)
+            labels = batch["label"].float().unsqueeze(0).expand_as(logits)
 
             reward_loss = self.reward_criterion(logits, labels).mean()
             reg_loss = (r1**2).mean() + (r2**2).mean()

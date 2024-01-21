@@ -74,7 +74,7 @@ class IPLComparisonOfflineDataset(torch.utils.data.IterableDataset):
             "obs_2": self.data["obs_2"][idx, start_idx:end_idx],
             "action_1": self.data["action_1"][idx, start_idx:end_idx],
             "action_2": self.data["action_2"][idx, start_idx: end_idx],
-            "label": self.data["label"][idx],
+            "label": self.data["label"][idx][:, None],
             "terminal_1": np.zeros([len(idx), end_idx-start_idx, 1], dtype=np.float32) \
                 if is_batch else np.zeros([end_idx-start_idx, 1], dtype=np.float32),
             "terminal_2": np.zeros([len(idx), end_idx-start_idx, 1], dtype=np.float32) \

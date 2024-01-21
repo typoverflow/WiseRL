@@ -65,12 +65,8 @@ class SFT(Algorithm):
             mask = torch.stack([torch.ones_like(label), torch.ones_like(label)], dim=0)
         elif self.bc_data == "win":
             mask = torch.stack([1-label, label], dim=0)
-            # select = (label > 0.5).long()
-            # obs, action = obs[select], action[select]
         elif self.bc_data == "lose":
             mask = torch.stack([label, 1-label], dim=0)
-            # select = (label < 0.5).long()
-            # obs, action = obs[select], action[select]
 
         if isinstance(self.network.actor, DeterministicActor):
             actor_loss = ((self.network.actor.sample(obs)[0]-action)**2).sum(dim=-1)
