@@ -13,7 +13,7 @@ algorithm_kwargs:
 
 checkpoint: null
 seed: 0
-name: default
+name: state_dense
 debug: false
 device: null
 wandb:
@@ -21,7 +21,7 @@ wandb:
   entity: null
   project: null
 
-env: hopper-medium-replay-v2
+env: mw_drawer-open-v2
 env_kwargs:
 env_wrapper:
 env_wrapper_kwargs:
@@ -34,36 +34,31 @@ optim:
 
 network:
   actor:
-    class: SquashedGaussianActor
+    class: SquashedDeterministicActor
     kwargs:
-      hidden_dims: [256, 256]
-      reparameterize: false
-      conditioned_logstd: false
-      logstd_min: -5
-      logstd_max: 2
+      dropout: 0.25
+      hidden_dims: [512, 512]
   critic:
     class: Critic
     kwargs:
       ensemble_size: 2
-      hidden_dims: [256, 256]
+      hidden_dims: [512, 512]
   value:
     class: Critic
     kwargs:
       ensemble_size: 1
-      hidden_dims: [256, 256]
+      hidden_dims: [512, 512]
 
 dataset:
-  - class: IPLComparisonOfflineDataset
+  - class: MetaworldComparisonOfflineDataset
     kwargs:
-      env: hopper-medium-replay-v2
-      batch_size: 8
+      env: mw_drawer-open-v2
+      label_key: rl_sum
       segment_length: null
-  - class: D4RLOfflineDataset
-    kwargs:
-      env: hopper-medium-replay-v2
-      batch_size: 256
-      mode: transition
-      reward_normalize: true
+      batch_size: 96
+      capacity: 2500
+      mode: dense  # Choices: {sparse, dense}
+      discount: 0.99
 
 dataloader:
   num_workers: 0  # use the main thread to sample data
