@@ -85,7 +85,7 @@ class OracleIQL(Algorithm):
         self.optim["value"] = vars(torch.optim)[value_class](self.network.value.parameters(), **critic_kwargs)
 
     def select_action(self, batch, deterministic: bool=True):
-        obs = batch["obs"]
+        obs = self.network.encoder(batch["obs"])
         action, *_ = self.network.actor.sample(obs, deterministic=deterministic)
         return action.squeeze().cpu().numpy()
 
@@ -123,6 +123,7 @@ class OracleIQL(Algorithm):
         encoded_obs = self.network.encoder(obs)
 
         with torch.no_grad():
+            self.target_network.eval()
             q_old = self.target_network.critic(encoded_obs, action)
             q_old = torch.min(q_old, dim=0)[0]
 

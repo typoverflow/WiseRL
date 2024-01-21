@@ -92,6 +92,7 @@ class IPL_IQL(OracleIQL):
 
         # compute value loss
         with torch.no_grad():
+            self.target_network.eval()
             q_old = self.target_network.critic(encoded_obs, action)
             q_old = torch.min(q_old, dim=0)[0]
         v_loss, v_pred = self.v_loss(encoded_obs, q_old, reduce=False)

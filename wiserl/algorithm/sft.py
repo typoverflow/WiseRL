@@ -51,7 +51,7 @@ class SFT(Algorithm):
         self.optim["actor"] = vars(torch.optim)[actor_class](actor_params, **actor_kwargs)
 
     def select_action(self, batch, deterministic: bool=True):
-        obs = batch["obs"]
+        obs = self.network.encoder(batch["obs"])
         action, *_ = self.network.actor.sample(obs, deterministic=deterministic)
         return action.squeeze().cpu().numpy()
 
