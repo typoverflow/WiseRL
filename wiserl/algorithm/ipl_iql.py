@@ -128,7 +128,7 @@ class IPL_IQL(OracleIQL):
         E = r1.shape[0]
         r1, r2 = r1.reshape(E, F_B, F_S), r2.reshape(E, F_B, F_S)
         logits = r2.sum(dim=-1) - r1.sum(dim=-1)
-        labels = feedback_batch["label"].float().unsqueeze(0).expand(E, -1)
+        labels = feedback_batch["label"].float().unsqueeze(0).squeeze(-1).expand(E, -1)
         q_loss = self.reward_criterion(logits, labels).mean()
         if using_replay_batch and self.reg_replay_weight is not None:
             reg_loss_fb = (r1.square().mean() + r2.square().mean()) / 2
@@ -141,7 +141,7 @@ class IPL_IQL(OracleIQL):
         self.optim["critic"].step()
 
         with torch.no_grad():
-            reward_accuracy = ((r2.sum(dim=-1) > r1.sum(-1)) == torch.round(labels)).float().mean()
+            reward_accuracy = ((logits > 0) == torch.round(labels)).float().mean()
 
         for _, scheduler in self.schedulers.items():
             scheduler.step()

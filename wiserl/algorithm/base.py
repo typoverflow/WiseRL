@@ -9,7 +9,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-import wiserl
 from wiserl.processor import Identity, Processor
 from wiserl.utils import utils
 from wiserl.utils.misc import convert_to_tensor
@@ -48,12 +47,12 @@ class Algorithm(ABC):
         self.optim = {}
         self.schedulers = {}
         self.processor = {}
-        optim_kwargs = optim_kwargs or defaultdict(dict)
-        schedulers_kwargs = schedulers_kwargs or defaultdict(dict)
-        processor_kwargs = processor_kwargs or defaultdict(dict)
-        self.setup_optimizers(optim_kwargs)
-        self.setup_schedulers(schedulers_kwargs)
-        self.setup_processor(processor_kwargs)
+        self.optim_kwargs = optim_kwargs or defaultdict(dict)
+        self.schedulers_kwargs = schedulers_kwargs or defaultdict(dict)
+        self.processor_kwargs = processor_kwargs or defaultdict(dict)
+        self.setup_optimizers(self.optim_kwargs)
+        self.setup_schedulers(self.schedulers_kwargs)
+        self.setup_processor(self.processor_kwargs)
 
         self._training = False
         if checkpoint is not None:

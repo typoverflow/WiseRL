@@ -1,10 +1,10 @@
-algorithm: BTIQL
+algorithm: CPL
 algorithm_kwargs:
-  beta: 0.3333
-  expectile: 0.7
-  max_exp_clip: 100.0
-  reward_steps: 50000
-  reward_reg: 0.0
+  alpha: 0.1
+  bias: 0.5
+  bc_coeff: 0.0
+  bc_data: total
+  bc_steps: 200000
 
 checkpoint: null
 seed: 0
@@ -30,7 +30,7 @@ optim:
   default:
     class: Adam
     kwargs:
-      lr: 0.0003
+      lr: 0.0001
 
 network:
   reward:
@@ -42,16 +42,6 @@ network:
     class: SquashedDeterministicActor
     kwargs:
       dropout: 0.25
-      hidden_dims: [512, 512]
-  critic:
-    class: Critic
-    kwargs:
-      ensemble_size: 2
-      hidden_dims: [512, 512]
-  value:
-    class: Critic
-    kwargs:
-      ensemble_size: 1
       hidden_dims: [512, 512]
 
 dataset:
@@ -70,7 +60,7 @@ dataloader:
 
 trainer:
   env_freq: null
-  total_steps: 550000
+  total_steps: 500000
   log_freq: 500
   profile_freq: 500
   eval_freq: 5000
@@ -82,9 +72,6 @@ eval:
     deterministic: true
 
 schedulers:
-  actor:
-    class: CosineAnnealingLR
-    kwargs:
-      T_max: 500000
+  # TODO: add linear warmup, but I don't think it is necessary
 
 processor: null
