@@ -93,6 +93,7 @@ class BTIQL(OracleIQL):
             reward = self.network.reward(torch.cat([obs, action], dim=-1)).detach().mean(dim=0)
 
         with torch.no_grad():
+            self.target_network.eval()
             q_old = self.target_network.critic(encoded_obs, action)
             q_old = torch.min(q_old, dim=0)[0]
 
