@@ -5,17 +5,14 @@ import torch
 import torch.nn as nn
 
 import wiserl.module
-from wiserl.algorithm.oracle_iql import OracleIQL
-from wiserl.module.actor import DeterministicActor, GaussianActor
-from wiserl.utils.functional import expectile_regression
+from wiserl.algorithm.oracle_awac import OracleAWAC
 from wiserl.utils.misc import make_target, sync_target
 
 
-class BTIQL(OracleIQL):
+class BTAWAC(OracleAWAC):
     def __init__(
         self,
         *args,
-        expectile: float = 0.7,
         beta: float = 0.3333,
         max_exp_clip: float = 100.0,
         discount: float = 0.99,
@@ -27,7 +24,6 @@ class BTIQL(OracleIQL):
     ) -> None:
         super().__init__(
             *args,
-            expectile=expectile,
             beta=beta,
             max_exp_clip=max_exp_clip,
             discount=discount,
@@ -91,19 +87,8 @@ class BTIQL(OracleIQL):
         else:
             reward = self.network.reward(torch.cat([obs, action], dim=-1)).detach().mean(dim=0)
 
-        with torch.no_grad():
-            self.target_network.eval()
-            q_old = self.target_network.critic(encoded_obs, action)
-            q_old = torch.min(q_old, dim=0)[0]
-
-        # compute the loss for value network
-        v_loss, v_pred = self.v_loss(encoded_obs, q_old)
-        self.optim["value"].zero_grad()
-        v_loss.backward()
-        self.optim["value"].step()
-
         # compute the loss for actor
-        actor_loss, advantage = self.actor_loss(encoded_obs, action, q_old, v_pred.detach())
+        actor_loss, advantage = self.actor_loss(encoded_obs, action)
         self.optim["actor"].zero_grad()
         actor_loss.backward()
         self.optim["actor"].step()
@@ -128,10 +113,8 @@ class BTIQL(OracleIQL):
 
         metrics = {
             "loss/q_loss": q_loss.item(),
-            "loss/v_loss": v_loss.item(),
             "loss/actor_loss": actor_loss.item(),
             "misc/q_pred": q_pred.mean().item(),
-            "misc/v_pred": v_pred.mean().item(),
             "misc/advantage": advantage.mean().item()
         }
         if step < self.reward_steps:

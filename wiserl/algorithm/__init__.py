@@ -1,3 +1,4 @@
+from wiserl.algorithm.bt_awac import BTAWAC
 from wiserl.algorithm.bt_iql import BTIQL
 from wiserl.algorithm.cpl import CPL
 from wiserl.algorithm.cpl_kl import CPL_KL
