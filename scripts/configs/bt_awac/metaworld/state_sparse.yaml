@@ -1,7 +1,9 @@
-algorithm: OracleAWAC
+algorithm: BTAWAC
 algorithm_kwargs:
   beta: 0.3333
   max_exp_clip: 100.0
+  reward_steps: 50000
+  reward_reg: 0.0
 
 checkpoint: null
 seed: 0
@@ -30,6 +32,11 @@ optim:
       lr: 0.0003
 
 network:
+  reward:
+    class: EnsembleMLP
+    kwargs:
+      ensemble_size: 1
+      hidden_dims: [512, 512]
   actor:
     class: SquashedDeterministicActor
     kwargs:
@@ -39,7 +46,7 @@ network:
     class: Critic
     kwargs:
       ensemble_size: 2
-      hidden_dims: [256, 256]
+      hidden_dims: [512, 512]
 
 dataset:
   class: MetaworldComparisonOfflineDataset
@@ -57,7 +64,7 @@ dataloader:
 
 trainer:
   env_freq: null
-  total_steps: 500000
+  total_steps: 550000
   log_freq: 500
   profile_freq: 500
   eval_freq: 5000
