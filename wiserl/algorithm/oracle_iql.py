@@ -90,7 +90,7 @@ class OracleIQL(Algorithm):
         return action.squeeze().cpu().numpy()
 
     def v_loss(self, encoded_obs, q_old, reduce=True):
-        v_pred = self.network.value(encoded_obs.detach())
+        v_pred = self.network.value(encoded_obs)
         v_loss = expectile_regression(v_pred, q_old, expectile=self.expectile)
         return v_loss.mean() if reduce else v_loss, v_pred
 
@@ -109,7 +109,7 @@ class OracleIQL(Algorithm):
         with torch.no_grad():
             target_q = self.network.value(next_encoded_obs)
             target_q = reward + self.discount * (1-terminal) * target_q
-        q_pred = self.network.critic(encoded_obs.detach(), action)
+        q_pred = self.network.critic(encoded_obs, action)
         q_loss = (q_pred - target_q.unsqueeze(0)).pow(2).sum(0)
         return q_loss.mean() if reduce else q_loss, q_pred
 
@@ -128,7 +128,7 @@ class OracleIQL(Algorithm):
             q_old = torch.min(q_old, dim=0)[0]
 
         # compute the loss for value network
-        v_loss, v_pred = self.v_loss(encoded_obs, q_old)
+        v_loss, v_pred = self.v_loss(encoded_obs.detach(), q_old)
         self.optim["value"].zero_grad()
         v_loss.backward()
         self.optim["value"].step()
@@ -141,9 +141,9 @@ class OracleIQL(Algorithm):
 
         # compute the loss for q, offset by 1
         q_loss, q_pred = self.q_loss(
-            encoded_obs[:, :-1],
+            encoded_obs[:, :-1].detach(),
             action[:, :-1],
-            encoded_obs[:, 1:],
+            encoded_obs[:, 1:].detach(),
             reward[:, :-1],
             terminal[:, :-1]
         )
