@@ -79,8 +79,8 @@ class OracleAWAC(Algorithm):
     def actor_loss(self, encoded_obs, action, reduce=True):
         with torch.no_grad():
             baseline_actions = self.network.actor.sample(encoded_obs)[0]
-            v = self.network.critic(encoded_obs, baseline_actions).min(0)[0]
-            q = self.network.critic(encoded_obs, action).min(0)[0]
+            v = self.network.critic(encoded_obs, baseline_actions).mean(0)[0]
+            q = self.network.critic(encoded_obs, action).mean(0)[0]
             advantage = q - v
         exp_advantage = (advantage / self.beta).exp().clip(max=self.max_exp_clip)
         if isinstance(self.network.actor, DeterministicActor):
@@ -96,7 +96,7 @@ class OracleAWAC(Algorithm):
             next_actions = self.network.actor.sample(next_encoded_obs)[0]
             target_q = self.target_network.critic(next_encoded_obs, next_actions).min(0)[0]
             target_q = reward + self.discount * (1-terminal) * target_q
-        q_pred = self.network.critic(encoded_obs.detach(), action)
+        q_pred = self.network.critic(encoded_obs, action)
         q_loss = (q_pred - target_q.unsqueeze(0)).pow(2).sum(0)
         return q_loss.mean() if reduce else q_loss, q_pred
 
@@ -110,9 +110,9 @@ class OracleAWAC(Algorithm):
         encoded_obs = self.network.encoder(obs)
 
         q_loss, q_pred = self.q_loss(
-            encoded_obs[:, :-1],
+            encoded_obs[:, :-1].detach(),
             action[:, :-1],
-            encoded_obs[:, 1:],
+            encoded_obs[:, 1:].detach(),
             reward[:, :-1],
             terminal[:, :-1]
         )

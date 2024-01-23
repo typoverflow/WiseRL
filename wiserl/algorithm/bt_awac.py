@@ -95,9 +95,9 @@ class BTAWAC(OracleAWAC):
 
         # compute the loss for q, offset by 1
         q_loss, q_pred = self.q_loss(
-            encoded_obs[:, :-1],
+            encoded_obs[:, :-1].detach(),
             action[:, :-1],
-            encoded_obs[:, 1:],
+            encoded_obs[:, 1:].detach(),
             reward[:, :-1],
             terminal[:, :-1]
         )

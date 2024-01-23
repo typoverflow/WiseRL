@@ -97,7 +97,7 @@ class BTIQL(OracleIQL):
             q_old = torch.min(q_old, dim=0)[0]
 
         # compute the loss for value network
-        v_loss, v_pred = self.v_loss(encoded_obs, q_old)
+        v_loss, v_pred = self.v_loss(encoded_obs.detach(), q_old)
         self.optim["value"].zero_grad()
         v_loss.backward()
         self.optim["value"].step()
@@ -110,9 +110,9 @@ class BTIQL(OracleIQL):
 
         # compute the loss for q, offset by 1
         q_loss, q_pred = self.q_loss(
-            encoded_obs[:, :-1],
+            encoded_obs[:, :-1].detach(),
             action[:, :-1],
-            encoded_obs[:, 1:],
+            encoded_obs[:, 1:].detach(),
             reward[:, :-1],
             terminal[:, :-1]
         )
