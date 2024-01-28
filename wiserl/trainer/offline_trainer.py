@@ -88,7 +88,7 @@ class OfflineTrainer(object):
         else:
             env_freq = env_iters = None
 
-        for step in trange(1, self.total_steps+1):
+        for step in trange(0, self.total_steps+1):
             # do env step
             if env_freq and step % env_freq == 0:
                 for _ in range(env_iters):
