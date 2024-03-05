@@ -3,10 +3,10 @@ import functools
 import os
 import shutil
 
-import wandb
 from UtilsRL.exp import parse_args, setup
 from UtilsRL.logger import CompositeLogger
 
+import wandb
 import wiserl.algorithm
 from wiserl.env import get_env
 from wiserl.trainer.offline_trainer import OfflineTrainer
@@ -33,7 +33,8 @@ if __name__ == "__main__":
     env = env_fn()
 
     # define the algorithm
-    algorithm = vars(wiserl.algorithm)[args["algorithm"]](
+
+    algorithm = vars(wiserl.algorithm)[args["algorithm"].pop("class")](
         env.observation_space,
         env.action_space,
         args["network"],
@@ -41,7 +42,7 @@ if __name__ == "__main__":
         args["schedulers"],
         args["processor"],
         args["checkpoint"],
-        **args["algorithm_kwargs"],
+        **args["algorithm"],
         device=args["device"]
     )
 
