@@ -1,6 +1,7 @@
 import itertools
 from typing import Any, Dict, Optional, Type
 
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -107,9 +108,16 @@ class BTIQL(OracleIQL):
             self.optim["reward"].step()
 
             all_reward = all_reward.detach().mean(dim=0)
+            # E, B = all_reward.shape[:2]
+            # select_idx = np.random.randint(0, E, size=B)
+            # all_reward = all_reward.detach()[select_idx, np.arange(B)]
+
         else:
             all_reward = self.network.reward(torch.concat([all_obs, all_action], dim=-1)).detach().mean(dim=0)
-
+            # all_reward = self.network.reward(torch.concat([all_obs, all_action], dim=-1))
+            # E, B = all_reward.shape[:2]
+            # select_idx = np.random.randint(0, E, size=B)
+            # all_reward = all_reward.detach()[select_idx, np.arange(B)]
         # if using_replay_batch:
         #     replay_obs_encoded = self.network.encoder(replay_batch["obs"])
         #     replay_next_obs_encoded = self.network.encoder(replay_batch["next_obs"])
