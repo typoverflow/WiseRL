@@ -129,23 +129,22 @@ class OfflineTrainer(object):
 
         observation_space = self.env.observation_space
         action_space = self.env.action_space
+
         # parse the dataset arguments
         if self.dataset_kwargs is None:
             return
         if isinstance(self.dataset_kwargs, dict):
             self.dataset_kwargs = [self.dataset_kwargs, ]
-            # self.dataloader_kwargs = [self.dataloader_kwargs, ]
         elif not isinstance(self.dataset_kwargs, list):
-            raise TypeError(f"The type of dataset_kwargs should be list or dict.")
+            raise TypeError(f"The type of dataset_kwargs should be either list or dict.")
 
         self._datasets = []
-        for item in self.dataset_kwargs:
-            cls = item["class"]
-            ds_kwargs = item["kwargs"]
+        for kwargs in self.dataset_kwargs:
+            cls = kwargs.pop("class")
             ds = vars(wiserl.dataset)[cls](
                     observation_space,
                     action_space,
-                    **ds_kwargs
+                    **kwargs
                 )
             self._datasets.append(ds)
 
@@ -154,7 +153,7 @@ class OfflineTrainer(object):
         if isinstance(self.dataloader_kwargs, dict):
             self.dataloader_kwargs = [self.dataloader_kwargs.copy() for _ in range(len(self._datasets))]
         elif not isinstance(self.dataloader_kwargs, list):
-            raise TypeError(f"The type of dataloader kwargs should be in dict or list.")
+            raise TypeError(f"The type of dataloader kwargs should be either dict or list.")
 
         self._dataloaders = []
         for ds, dl_kwargs in zip(self._datasets, self.dataloader_kwargs):

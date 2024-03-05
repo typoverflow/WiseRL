@@ -33,26 +33,26 @@ class OracleIQL(Algorithm):
 
     def setup_network(self, network_kwargs):
         network = {}
-        network["actor"] = vars(wiserl.module)[network_kwargs["actor"]["class"]](
+        network["actor"] = vars(wiserl.module)[network_kwargs["actor"].pop("class")](
             input_dim=self.observation_space.shape[0],
             output_dim=self.action_space.shape[0],
-            **network_kwargs["actor"]["kwargs"]
+            **network_kwargs["actor"]
         )
-        network["critic"] = vars(wiserl.module)[network_kwargs["critic"]["class"]](
+        network["critic"] = vars(wiserl.module)[network_kwargs["critic"].pop("class")](
             input_dim=self.observation_space.shape[0]+self.action_space.shape[0],
             output_dim=1,
-            **network_kwargs["critic"]["kwargs"]
+            **network_kwargs["critic"]
         )
-        network["value"] = vars(wiserl.module)[network_kwargs["value"]["class"]](
+        network["value"] = vars(wiserl.module)[network_kwargs["value"].pop("class")](
             input_dim=self.observation_space.shape[0],
             output_dim=1,
-            **network_kwargs["value"]["kwargs"]
+            **network_kwargs["value"]
         )
         if "encoder" in network_kwargs:
-            network["encoder"] = vars(wiserl.module)[network_kwargs["encoder"]["class"]](
+            network["encoder"] = vars(wiserl.module)[network_kwargs["encoder"].pop("class")](
                 input_dim=self.observation_space.shape[0],
                 output_dim=1,
-                **network_kwargs["encoder"]["kwargs"]
+                **network_kwargs["encoder"]
             )
         else:
             network["encoder"] = nn.Identity()
@@ -63,26 +63,21 @@ class OracleIQL(Algorithm):
 
     def setup_optimizers(self, optim_kwargs):
         self.optim = {}
-        if "default" in optim_kwargs:
-            default_class = optim_kwargs["default"]["class"]
-            default_kwargs = optim_kwargs["default"]["kwargs"]
-        else:
-            default_class, default_kwargs = None, {}
-        actor_class = optim_kwargs.get("actor", {}).get("class", None) or default_class
+        default_kwargs = optim_kwargs.get("default", {})
+
         actor_kwargs = default_kwargs.copy()
-        actor_kwargs.update(optim_kwargs.get("actor", {}).get("kwargs", {}))
+        actor_kwargs.update(optim_kwargs.get("actor", {}))
         actor_params = itertools.chain(self.network.actor.parameters(), self.network.encoder.parameters())
-        self.optim["actor"] = vars(torch.optim)[actor_class](actor_params, **actor_kwargs)
+        self.optim["actor"] = vars(torch.optim)[actor_kwargs.pop("class")](actor_params, **actor_kwargs)
 
-        critic_class = optim_kwargs.get("critic", {}).get("class", None) or default_class
         critic_kwargs = default_kwargs.copy()
-        critic_kwargs.update(optim_kwargs.get("critic", {}).get("kwargs", {}))
-        self.optim["critic"] = vars(torch.optim)[critic_class](self.network.critic.parameters(), **critic_kwargs)
+        critic_kwargs.update(optim_kwargs.get("critic", {}))
+        self.optim["critic"] = vars(torch.optim)[critic_kwargs.pop("class")](self.network.critic.parameters(), **critic_kwargs)
 
-        value_class = optim_kwargs.get("value", {}).get("class", None) or default_class
         value_kwargs = default_kwargs.copy()
-        value_kwargs.update(optim_kwargs.get("value", {}).get("kwargs", {}))
-        self.optim["value"] = vars(torch.optim)[value_class](self.network.value.parameters(), **critic_kwargs)
+        value_kwargs.update(optim_kwargs.get("value", {}))
+        self.optim["value"] = vars(torch.optim)[value_kwargs.pop("class")](self.network.value.parameters(), **value_kwargs)
+
 
     def select_action(self, batch, deterministic: bool=True):
         obs = self.network.encoder(batch["obs"])
