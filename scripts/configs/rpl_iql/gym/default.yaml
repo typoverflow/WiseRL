@@ -2,7 +2,7 @@ algorithm:
   class: RPL_IQL
   beta: 0.3333
   expectile: 0.7
-  reward_reg: 0.5
+  reward_reg: 0.0
   reg_replay_weight: 0.5
   actor_replay_weight: 0.5
   value_replay_weight: 0.5
@@ -39,13 +39,13 @@ network:
     conditioned_logstd: false
     logstd_min: -5
     logstd_max: 2
-  critic:
-    class: Critic
-    ensemble_size: 2
+  reward:
+    class: MLP
+    # ensemble_size: 1
     hidden_dims: [256, 256]
   value:
     class: Critic
-    ensemble_size: 1
+    ensemble_size: 2
     hidden_dims: [256, 256]
 
 dataset:

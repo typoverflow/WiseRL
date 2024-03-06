@@ -13,7 +13,7 @@ from wiserl.trainer.offline_trainer import OfflineTrainer
 
 if __name__ == "__main__":
     args = parse_args(convert=False)
-    name_prefix = f"{args['algorithm']}/{args['name']}/{args['env']}"
+    name_prefix = f"{args['algorithm']['class']}/{args['name']}/{args['env']}"
     logger = CompositeLogger(
         log_dir=f"./log/{name_prefix}",
         name="seed"+str(args["seed"]),

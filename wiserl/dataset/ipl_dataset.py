@@ -14,7 +14,7 @@ DATASET_PATH={
     "hopper-medium-replay-v2": f"{prefix}/hopper-medium-replay-v2/num500",
     "hopper-medium-expert-v2": f"{prefix}/hopper-medium-expert-v2/num100",
     "walker2d-medium-replay-v2": f"{prefix}/walker2d-medium-replay-v2/num500",
-    "walker2d-medium-expert-v2": f"{prefix}/walker2d-medium-expert-v2/num500",
+    "walker2d-medium-expert-v2": f"{prefix}/walker2d-medium-expert-v2/num100",
     "Can-mh": f"{prefix}/Can/num500_q100",
     "Can-ph": f"{prefix}/Can/num100_q50",
     "Lift-mh": f"{prefix}/Lift/num500_q100",
