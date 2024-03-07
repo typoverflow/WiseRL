@@ -73,6 +73,7 @@ class RPL_IQL(OracleIQL):
             network["encoder"] = nn.Identity()
         self.network = nn.ModuleDict(network)
         self.target_network = nn.ModuleDict({
+            "reward": make_target(self.network.reward),
             "value": make_target(self.network.value)
         })
 
@@ -135,7 +136,8 @@ class RPL_IQL(OracleIQL):
         # compute value loss
         with torch.no_grad():
             self.target_network.eval()
-            reward_old = self.network.reward(torch.concat([encoded_obs.detach(), action], dim=-1))
+            v_old = self.target_network.value(encoded_obs.detach())
+            reward_old = self.target_network.reward(torch.concat([encoded_obs.detach(), action], dim=-1))
             next_v_old = self.target_network.value(encoded_next_obs.detach())
             q_old = reward_old + self.discount * (1-terminal) * next_v_old.min(0)[0]
 
@@ -152,7 +154,7 @@ class RPL_IQL(OracleIQL):
         self.optim["value"].step()
 
         # compute actor loss
-        actor_loss, advantage = self.actor_loss(encoded_obs, action, q_old, v_pred.mean(0).detach(), reduce=False)
+        actor_loss, advantage = self.actor_loss(encoded_obs, action, q_old, v_old.mean(0), reduce=False)
         if using_replay_batch and self.actor_replay_weight is not None:
             a1, a2, ar = torch.split(actor_loss, split, dim=0)
             actor_loss_fb = (a1.mean() + a2.mean()) / 2
@@ -166,7 +168,7 @@ class RPL_IQL(OracleIQL):
 
         # compute the reward loss
         reward_pred = self.network.reward(torch.concat([encoded_obs.detach(), action], dim=-1))
-        adv_pred = reward_pred + self.discount * (1-terminal) * next_v_old.mean(0) - v_pred.detach().mean(0)
+        adv_pred = reward_pred + self.discount * (1-terminal) * next_v_old.mean(0) - v_old.mean(0)
         adv1, adv2, advr = torch.split(adv_pred, split, dim=0)
         # E = adv1.shape[0]
         adv1, adv2 = adv1.reshape(F_B, F_S), adv2.reshape(F_B, F_S)
@@ -192,6 +194,7 @@ class RPL_IQL(OracleIQL):
 
         if step % self.target_freq == 0:
             sync_target(self.network.value, self.target_network.value, tau=self.tau)
+            sync_target(self.network.reward, self.target_network.reward, tau=self.tau)
 
         metrics = {
             "loss/reward_loss": reward_loss.item(),
