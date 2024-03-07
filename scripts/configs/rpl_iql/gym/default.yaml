@@ -72,9 +72,8 @@ trainer:
 
 eval:
   function: eval_offline
-  kwargs:
-    num_ep: 25
-    deterministic: true
+  num_ep: 25
+  deterministic: true
 
 schedulers:
 
