@@ -58,6 +58,7 @@ class OfflineTrainer(object):
         self.dataloader_kwargs = dataloader_kwargs
 
         # evaluation
+        self.eval_fn = None
         self.eval_kwargs = eval_kwargs
 
         self.algorithm = self.algorithm.to(device)
@@ -165,8 +166,10 @@ class OfflineTrainer(object):
         assert not self.algorithm.training
         if self.eval_kwargs is None:
             return {}
-        eval_metrics = vars(wiserl.eval)[self.eval_kwargs["function"]](
+        if self.eval_fn is None:
+            self.eval_fn = vars(wiserl.eval)[self.eval_kwargs.pop("function")]
+        eval_metrics = self.eval_fn(
             self.eval_env, self.algorithm,
-            **self.eval_kwargs["kwargs"]
+            **self.eval_kwargs
         )
         return eval_metrics
