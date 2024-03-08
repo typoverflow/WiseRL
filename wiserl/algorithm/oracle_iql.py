@@ -78,7 +78,6 @@ class OracleIQL(Algorithm):
         value_kwargs.update(optim_kwargs.get("value", {}))
         self.optim["value"] = vars(torch.optim)[value_kwargs.pop("class")](self.network.value.parameters(), **value_kwargs)
 
-
     def select_action(self, batch, deterministic: bool=True):
         obs = self.network.encoder(batch["obs"])
         action, *_ = self.network.actor.sample(obs, deterministic=deterministic)

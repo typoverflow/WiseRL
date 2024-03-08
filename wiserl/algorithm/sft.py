@@ -22,33 +22,29 @@ class SFT(Algorithm):
 
     def setup_network(self, network_kwargs):
         network = {}
+        network["actor"] = vars(wiserl.module)[network_kwargs["actor"].pop("class")](
+            input_dim=self.observation_space.shape[0],
+            output_dim=self.action_space.shape[0],
+            **network_kwargs["actor"]
+        )
         if "encoder" in network_kwargs:
-            network["encoder"] = vars(wiserl.module)[network_kwargs["encoder"]["class"]](
+            network["encoder"] = vars(wiserl.module)[network_kwargs["encoder"].pop("class")](
                 input_dim=self.observation_space.shape[0],
                 output_dim=1,
-                **network_kwargs["encoder"]["kwargs"]
+                **network_kwargs["encoder"]
             )
         else:
             network["encoder"] = nn.Identity()
-        network["actor"] = vars(wiserl.module)[network_kwargs["actor"]["class"]](
-            input_dim=self.observation_space.shape[0],
-            output_dim=self.action_space.shape[0],
-            **network_kwargs["actor"]["kwargs"]
-        )
         self.network = nn.ModuleDict(network)
 
     def setup_optimizers(self, optim_kwargs) -> None:
         self.optim = {}
-        if "default" in optim_kwargs:
-            default_class = optim_kwargs["default"]["class"]
-            default_kwargs = optim_kwargs["default"]["kwargs"]
-        else:
-            default_class, default_kwargs = None, {}
-        actor_class = optim_kwargs.get("actor", {}).get("class", None) or default_class
+        default_kwargs = optim_kwargs.get("default", {})
+
         actor_kwargs = default_kwargs.copy()
-        actor_kwargs.update(optim_kwargs.get("actor", {}).get("kwargs", {}))
+        actor_kwargs.update(optim_kwargs.get("actor", {}))
         actor_params = itertools.chain(self.network.actor.parameters(), self.network.encoder.parameters())
-        self.optim["actor"] = vars(torch.optim)[actor_class](actor_params, **actor_kwargs)
+        self.optim["actor"] = vars(torch.optim)[actor_kwargs.pop("class")](actor_params, **actor_kwargs)
 
     def select_action(self, batch, deterministic: bool=True):
         obs = self.network.encoder(batch["obs"])
@@ -72,7 +68,7 @@ class SFT(Algorithm):
             actor_loss = ((self.network.actor.sample(obs)[0]-action)**2).sum(dim=-1)
         elif isinstance(self.network.actor, GaussianActor):
             actor_loss = - (self.network.actor.evaluate(obs, action)[0])
-        actor_loss = (actor_loss * mask.unsqueeze(-1)).sum() / mask.sum()
+        actor_loss = (actor_loss * mask).sum() / mask.sum()
         self.optim["actor"].zero_grad()
         actor_loss.backward()
         self.optim["actor"].step()
