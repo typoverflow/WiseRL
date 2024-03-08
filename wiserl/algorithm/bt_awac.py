@@ -38,23 +38,18 @@ class BTAWAC(OracleAWAC):
 
     def setup_network(self, network_kwargs):
         super().setup_network(network_kwargs)
-        self.network["reward"] = vars(wiserl.module)[network_kwargs["reward"]["class"]](
+        self.network["reward"] = vars(wiserl.module)[network_kwargs["reward"].pop("class")](
             input_dim=self.observation_space.shape[0]+self.action_space.shape[0],
             output_dim=1,
-            **network_kwargs["reward"]["kwargs"]
+            **network_kwargs["reward"]
         )
 
     def setup_optimizers(self, optim_kwargs):
         super().setup_optimizers(optim_kwargs)
-        if "default" in optim_kwargs:
-            default_class = optim_kwargs["default"]["class"]
-            default_kwargs = optim_kwargs["default"]["kwargs"]
-        else:
-            default_class, default_kwargs = None, {}
-        reward_class = optim_kwargs.get("reward", {}).get("class", None) or default_class
+        default_kwargs = optim_kwargs.get("default", {})
         reward_kwargs = default_kwargs.copy()
-        reward_kwargs.update(optim_kwargs.get("reward", {}).get("kwargs", {}))
-        self.optim["reward"] = vars(torch.optim)[reward_class](self.network.reward.parameters(), **reward_kwargs)
+        reward_kwargs.update(optim_kwargs.get("reward", {}))
+        self.optim["reward"] = vars(torch.optim)[reward_kwargs.pop("class")](self.network.reward.parameters(), **reward_kwargs)
 
     def select_action(self, batch, deterministic: bool=True):
         return super().select_action(batch, deterministic)

@@ -169,13 +169,15 @@ class Algorithm(ABC):
         pass
 
     def setup_schedulers(self, scheduler_kwargs):
+        default_kwargs = scheduler_kwargs.get("default", {})
         for optim_key, optim in self.optim.items():
-            config = scheduler_kwargs.get(optim_key, scheduler_kwargs.get("default", None))
-            if config is None:
+            kwargs = default_kwargs.copy()
+            kwargs.update(scheduler_kwargs.get(optim_key, {}))
+            if len(kwargs) == 0:
                 continue
-            self.schedulers[optim_key] = vars(torch.optim.lr_scheduler)[config["class"]](
+            self.schedulers[optim_key] = vars(torch.optim.lr_scheduler)[kwargs.pop("class")](
                 self.optim[optim_key],
-                **config["kwargs"]
+                **kwargs
             )
 
     def save(self, path: str, name: str, metadata: Optional[Dict]=None) -> None:

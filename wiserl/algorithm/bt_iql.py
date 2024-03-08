@@ -45,23 +45,18 @@ class BTIQL(OracleIQL):
 
     def setup_network(self, network_kwargs):
         super().setup_network(network_kwargs)
-        self.network["reward"] = vars(wiserl.module)[network_kwargs["reward"]["class"]](
+        self.network["reward"] = vars(wiserl.module)[network_kwargs["reward"].pop("class")](
             input_dim=self.observation_space.shape[0]+self.action_space.shape[0],
             output_dim=1,
-            **network_kwargs["reward"]["kwargs"]
+            **network_kwargs["reward"]
         )
 
     def setup_optimizers(self, optim_kwargs):
         super().setup_optimizers(optim_kwargs)
-        if "default" in optim_kwargs:
-            default_class = optim_kwargs["default"]["class"]
-            default_kwargs = optim_kwargs["default"]["kwargs"]
-        else:
-            default_class, default_kwargs = None, {}
-        reward_class = optim_kwargs.get("reward", {}).get("class", None) or default_class
+        default_kwargs = optim_kwargs.get("default", {})
         reward_kwargs = default_kwargs.copy()
-        reward_kwargs.update(optim_kwargs.get("reward", {}).get("kwargs", {}))
-        self.optim["reward"] = vars(torch.optim)[reward_class](self.network.reward.parameters(), **reward_kwargs)
+        reward_kwargs.update(optim_kwargs.get("reward", {}))
+        self.optim["reward"] = vars(torch.optim)[reward_kwargs.pop("class")](self.network.reward.parameters(), **reward_kwargs)
 
     def select_action(self, batch, deterministic: bool=True):
         return super().select_action(batch, deterministic)
@@ -108,46 +103,8 @@ class BTIQL(OracleIQL):
             self.optim["reward"].step()
 
             all_reward = all_reward.detach().mean(dim=0)
-            # E, B = all_reward.shape[:2]
-            # select_idx = np.random.randint(0, E, size=B)
-            # all_reward = all_reward.detach()[select_idx, np.arange(B)]
-
         else:
             all_reward = self.network.reward(torch.concat([all_obs, all_action], dim=-1)).detach().mean(dim=0)
-            # all_reward = self.network.reward(torch.concat([all_obs, all_action], dim=-1))
-            # E, B = all_reward.shape[:2]
-            # select_idx = np.random.randint(0, E, size=B)
-            # all_reward = all_reward.detach()[select_idx, np.arange(B)]
-        # if using_replay_batch:
-        #     replay_obs_encoded = self.network.encoder(replay_batch["obs"])
-        #     replay_next_obs_encoded = self.network.encoder(replay_batch["next_obs"])
-        # all_obs_encoded = torch.concat([
-        #     feedback_obs_encoded.reshape(-1, self.obs_dim),
-        #     *((replay_obs_encoded, ) if using_replay_batch else ())
-        # ])
-        # all_action = torch.concat([
-        #     feedback_action.reshape(-1, self.action_dim),
-        #     *((replay_batch["action"], ) if using_replay_batch else ())
-        # ])
-        # cur_obs_encoded = torch.concat([
-        #     feedback_obs_encoded[:, :-1].reshape(-1, self.obs_dim)
-        #     *((replay_obs_encoded, ) if using_replay_batch else ())
-        # ], dim=0)
-        # cur_action = torch.concat([
-        #     feedback_action[:, :-1].reshape(-1, self.action_dim),
-        #     *((replay_batch["action"], ) if using_replay_batch else ())
-        # ], dim=0)
-        # next_obs_encoded = torch.concat([
-        #     feedback_obs_encoded[:, 1:].reshape(-1, self.obs_dim)
-        #     *((replay_next_obs_encoded, ) if using_replay_batch else ())
-        # ])
-        # cur_terminal = torch.concat([
-        #     batch["terminal_1"][:, :-1].reshape(F_B*F_S, -1),
-        #     batch["terminal_2"][:, :-1].reshape(F_B*F_S, -1),
-        #     *((replay_batch["terminal"], ) if using_replay_batch else ())
-        # ], dim=0)
-        # split1 = [F_B*F_S, F_B*F_S, R_B]
-        # split2 = [F_B*(F_S-1), F_B*(F_S-1), R_B]
 
         with torch.no_grad():
             self.target_network.eval()

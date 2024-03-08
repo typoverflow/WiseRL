@@ -1,5 +1,5 @@
-algorithm: CPL
-algorithm_kwargs:
+algorithm:
+  class: CPL
   alpha: 0.1
   bias: 0.5
   bc_coeff: 0.0
@@ -29,31 +29,23 @@ env_wrapper_kwargs:
 optim:
   default:
     class: Adam
-    kwargs:
-      lr: 0.0001
+    lr: 0.0001
 
 network:
-  reward:
-    class: EnsembleMLP
-    kwargs:
-      ensemble_size: 1
-      hidden_dims: [512, 512]
   actor:
     class: SquashedDeterministicActor
-    kwargs:
-      dropout: 0.25
-      hidden_dims: [512, 512]
+    dropout: 0.25
+    hidden_dims: [512, 512]
 
 dataset:
   class: MetaworldComparisonOfflineDataset
-  kwargs:
-    env: mw_drawer-open-v2
-    label_key: rl_sum
-    segment_length: null
-    batch_size: 96
-    capacity: 10000
-    mode: sparse  # Choices: {sparse, dense}
-    discount: 0.99
+  env: mw_drawer-open-v2
+  label_key: rl_sum
+  segment_length: null
+  batch_size: 96
+  capacity: 10000
+  mode: sparse  # Choices: {sparse, dense}
+  discount: 0.99
 dataloader:
   num_workers: 0  # use the main thread to sample data
   batch_size: null  # do not merge the data along batch axis
@@ -67,9 +59,8 @@ trainer:
 
 eval:
   function: eval_offline
-  kwargs:
-    num_ep: 10
-    deterministic: true
+  num_ep: 10
+  deterministic: true
 
 schedulers:
   # TODO: add linear warmup, but I don't think it is necessary

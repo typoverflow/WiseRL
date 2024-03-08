@@ -1,5 +1,5 @@
-algorithm: IPL_IQL
-algorithm_kwargs:
+algorithm:
+  class: IPL_IQL
   beta: 0.3333
   reward_reg: 0.5
   reg_replay_weight: 0.5
@@ -27,36 +27,31 @@ env_wrapper_kwargs:
 optim:
   default:
     class: Adam
-    kwargs:
-      lr: 0.0003
+    lr: 0.0003
 
 network:
   actor:
     class: SquashedDeterministicActor
-    kwargs:
-      dropout: 0.25
-      hidden_dims: [512, 512]
+    dropout: 0.25
+    hidden_dims: [512, 512]
   critic:
     class: Critic
-    kwargs:
-      ensemble_size: 2
-      hidden_dims: [512, 512]
+    ensemble_size: 2
+    hidden_dims: [512, 512]
   value:
     class: Critic
-    kwargs:
-      ensemble_size: 1
-      hidden_dims: [512, 512]
+    ensemble_size: 1
+    hidden_dims: [512, 512]
 
 dataset:
-  - class: MetaworldComparisonOfflineDataset
-    kwargs:
-      env: mw_drawer-open-v2
-      label_key: rl_sum
-      segment_length: null
-      batch_size: 96
-      capacity: 10000
-      mode: sparse  # Choices: {sparse, dense}
-      discount: 0.99
+  class: MetaworldComparisonOfflineDataset
+  env: mw_drawer-open-v2
+  label_key: rl_sum
+  segment_length: null
+  batch_size: 96
+  capacity: 10000
+  mode: sparse  # Choices: {sparse, dense}
+  discount: 0.99
 
 dataloader:
   num_workers: 0  # use the main thread to sample data
@@ -71,9 +66,8 @@ trainer:
 
 eval:
   function: eval_offline
-  kwargs:
-    num_ep: 10
-    deterministic: true
+  num_ep: 10
+  deterministic: true
 
 schedulers:
 
