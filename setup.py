@@ -16,9 +16,13 @@ def get_install_requires():
     return [
         "gym>=0.23.1,<=0.24.1",
         "tqdm",
+        "h5py",
+        "Cython==0.29.36"
+        "imageio",
         "numpy",
         "torch",
-        "pandas",
+        "tensorboard",
+        "wandb",
         "UtilsRL"
     ]
 
@@ -44,6 +48,7 @@ setup(
         "tqdm",
         "numpy",
         "torch",
+        "torchvision"
         "pandas",
         "UtilsRL"
     ]
