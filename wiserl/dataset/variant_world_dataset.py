@@ -25,8 +25,8 @@ class VariantWorldDataset(torch.utils.data.IterableDataset):
         self,
         observation_space: gym.Space,
         action_space: gym.Space,
-        env: str,
-        variant: str,
+        env: str,  # "HalfCheetah-v3", "Walker2d-v3"
+        variant: str,  # "gravity-08", "gravity-12" 
         segment_length: Optional[int] = None,
         batch_size: Optional[int] = None,
         capacity: Optional[int] = None,
