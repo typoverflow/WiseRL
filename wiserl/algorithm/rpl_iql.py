@@ -137,7 +137,7 @@ class RPL_IQL(OracleIQL):
         with torch.no_grad():
             self.target_network.eval()
             v_old = self.target_network.value(encoded_obs.detach())
-            reward_old = self.target_network.reward(torch.concat([encoded_obs.detach(), action], dim=-1))
+            reward_old = self.network.reward(torch.concat([encoded_obs.detach(), action], dim=-1))
             next_v_old = self.target_network.value(encoded_next_obs.detach())
             q_old = reward_old + self.discount * (1-terminal) * next_v_old.min(0)[0]
 
@@ -181,7 +181,7 @@ class RPL_IQL(OracleIQL):
             reg_loss_re = rr.square().mean()
             reg_loss = (1-self.reg_replay_weight) * reg_loss_fb + self.reg_replay_weight * reg_loss_re
         else:
-            reg_loss = reward_pred.square().mean()
+            reg_loss = reward_pred.abs().mean()
         self.optim["reward"].zero_grad()
         (reward_loss + self.reward_reg * reg_loss).backward()
         self.optim["reward"].step()
@@ -204,7 +204,8 @@ class RPL_IQL(OracleIQL):
             "misc/v_pred": v_pred.mean().item(),
             "misc/advantage": advantage.mean().item(),
             "misc/reward_value": reward_pred.mean().item(),
-            "misc/reward_acc": reward_accuracy.mean().item()
+            "misc/reward_acc": reward_accuracy.mean().item(),
+            "misc/residual_abs": (adv_pred - reward_pred).abs().mean().item()
         }
         if using_replay_batch and self.actor_replay_weight is not None:
             metrics.update({
