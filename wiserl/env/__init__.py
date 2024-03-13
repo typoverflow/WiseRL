@@ -4,6 +4,7 @@ from typing import Dict, Optional
 
 import gym
 from gym.envs import register
+import UtilsRL.env.wrapper
 
 from .base import EmptyEnv
 
@@ -34,5 +35,5 @@ def get_env(
         env = gym.make(env, **env_kwargs)
     if wrapper_class is not None:
         wrapper_kwargs = wrapper_kwargs or {}
-        env = vars()[wrapper_class](env, **wrapper_kwargs)
+        env = vars(UtilsRL.env.wrapper)[wrapper_class](env, **wrapper_kwargs)
     return env
