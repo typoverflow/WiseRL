@@ -1,0 +1,63 @@
+algorithm:
+  class: HindsightPreferenceLearning
+  seq_len: 50
+  z_dim: 64
+
+checkpoint: null
+seed: 0
+name: default
+debug: false
+device: null
+wandb:
+  activate: false
+  entity: null
+  project: null
+
+env: hopper-medium-v2
+env_kwargs:
+env_wrapper:
+env_wrapper_kwargs:
+
+optim:
+  default:
+    class: Adam
+    lr: 0.0003
+
+network:
+  encoder:
+    embed_dim: 128
+    num_layers: 3
+    num_heads: 4
+  decoder:
+    embed_dim: 64
+    hidden_dims: [256, 256]
+  prior:
+    hidden_dims: [256, 256]
+
+
+dataset:
+  - class: D4RLOfflineDataset
+    env: hopper-medium-v2
+    batch_size: 32
+    mode: trajectory
+    segment_length: 50
+
+dataloader:
+  num_workers: 0  # use the main thread to sample data
+  batch_size: null  # do not merge the data along batch axis
+
+trainer:
+  env_freq: null
+  total_steps: 1000000
+  log_freq: 500
+  profile_freq: 500
+  eval_freq: 9999999999   # don't do eval
+
+eval:
+  function: eval_placeholder
+  num_ep: 25
+  deterministic: true
+
+schedulers:
+
+processor: null

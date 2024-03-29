@@ -70,7 +70,7 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
                 sample = []
                 for _ in range(self.batch_size):
                     traj_idx = np.random.choice(self.data_size, p=self.sample_prob)
-                    start_idx = np.random.choice(self.traj_len[traj_idx])
+                    start_idx = np.random.choice(self.traj_len[traj_idx]-self.segment_length)
                     s = {k: v[traj_idx, start_idx:start_idx+self.segment_length] for k, v in self.data.items()}
                     s["timestep"] = np.arange(start_idx, start_idx+self.segment_length)
                     sample.append(s)
@@ -187,7 +187,7 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
                 self.segment_length = self.max_len
                 self.sample_full = True
             else:
-                self.max_len = self.traj_len.max() + self.segment_length - 1
+                self.max_len = self.traj_len.max()
                 self.sample_prob = self.traj_len / self.traj_len.sum()
                 self.sample_full = False
 
