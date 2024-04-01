@@ -56,11 +56,13 @@ class HindsightPreferenceLearning(Algorithm):
         seq_len: int = 50,
         z_dim: int = 64,
         kl_loss_coef: float = 1.0,
+        kl_balance_coef: float = 0.8,
         **kwargs
     ):
         self.seq_len = seq_len
         self.z_dim = z_dim
         self.kl_loss_coef = kl_loss_coef
+        self.kl_balance_coef = kl_balance_coef
         super().__init__(*args, **kwargs)
         self.future_attention_mask = torch.tril(torch.ones([seq_len, seq_len]), diagonal=-1).to(self.device)
 
@@ -134,6 +136,11 @@ class HindsightPreferenceLearning(Algorithm):
         z_posterior, _, info = self.network.future_proj.sample(out, deterministic=False, return_mean_logstd=True)
         z_mean, z_logstd = info["mean"], info["logstd"]
 
+        def compute_kl_loss(mean_post, logstd_post, mean_prior, logstd_prior):
+            var_post = (2*logstd_post).exp()
+            var_prior = (2*logstd_prior).exp()
+            return logstd_prior - logstd_post + (var_post + (mean_post - mean_prior).square()) / (2*var_prior) - 0.5
+
         # select the time index
         num_select = B * 4
         x = torch.randint(0, L-1, [num_select, ]).to(self.device)
@@ -157,10 +164,13 @@ class HindsightPreferenceLearning(Algorithm):
 
         # KL divergence
         z_prior_mean, z_prior_logstd = self.network.prior.forward(obs_action)
-        z_var = (2*z_logstd).exp()
-        z_piror_var = (2*z_prior_logstd).exp()
-        kl_loss = z_prior_logstd - z_logstd + (z_var + (z_mean - z_prior_mean).square()) / (2*z_piror_var) - 0.5
-        kl_loss = kl_loss.mean()
+        prior_kl_loss = compute_kl_loss(z_mean.detach(), z_logstd.detach(), z_prior_mean, z_prior_logstd).mean()
+        post_kl_loss = compute_kl_loss(z_mean, z_logstd, z_prior_mean.detach(), z_prior_logstd.detach()).mean()
+        kl_loss = self.kl_balance_coef * prior_kl_loss + (1-self.kl_balance_coef) * post_kl_loss
+        # z_var = (2*z_logstd).exp()
+        # z_piror_var = (2*z_prior_logstd).exp()
+        # kl_loss = z_prior_logstd - z_logstd + (z_var + (z_mean - z_prior_mean).square()) / (2*z_piror_var) - 0.5
+        # kl_loss = kl_loss.mean()
 
         self.optim["future_encoder"].zero_grad()
         self.optim["future_proj"].zero_grad()
@@ -174,5 +184,7 @@ class HindsightPreferenceLearning(Algorithm):
 
         return {
             "loss/recon_loss": recon_loss.item(),
-            "loss/kl_loss": kl_loss.item()
+            "loss/kl_loss": kl_loss.item(),
+            "loss/prior_kl_loss": prior_kl_loss.item(),
+            "loss/post_kl_loss": post_kl_loss.item(),
         }
