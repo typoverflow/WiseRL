@@ -1,7 +1,18 @@
 algorithm:
   class: HindsightPreferenceLearning
-  seq_len: 50
+  expectile: 0.7
+  beta: 0.3333
+  max_exp_clip: 100.0
+  discount: 0.99
+  tau: 0.005
+  seq_len: 100
+  future_len: 50
   z_dim: 64
+  prior_sample: 5
+  vae_steps: 100000
+  reward_steps: 100000
+  kl_loss_coef: 1.0
+  kl_balance_coef: 0.8
 
 checkpoint: null
 seed: 0
@@ -13,7 +24,7 @@ wandb:
   entity: null
   project: null
 
-env: hopper-medium-v2
+env: hopper-medium-replay-v2
 env_kwargs:
 env_wrapper:
 env_wrapper_kwargs:
@@ -33,15 +44,37 @@ network:
     hidden_dims: [256, 256]
   prior:
     hidden_dims: [256, 256]
+  reward:
+    class: MLP
+    hidden_dims: [256, 256]
+  actor:
+    class: SquashedGaussianActor
+    hidden_dims: [256, 256]
+    reparameterize: false
+    conditioned_logstd: false
+    logstd_min: -5
+    logstd_max: 2
+  critic:
+    class: Critic
+    ensemble_size: 2
+    hidden_dims: [256, 256]
+  value:
+    class: Critic
+    ensemble_size: 1
+    hidden_dims: [256, 256]
 
 
 dataset:
   - class: D4RLOfflineDataset
-    env: hopper-medium-v2
-    batch_size: 32
+    env: hopper-medium-replay-v2
+    batch_size: 64
     mode: trajectory
-    segment_length: 50
+    segment_length: 100
     padding_mode: none
+  - class: IPLComparisonOfflineDataset
+    env: hopper-medium-replay-v2
+    batch_size: 8
+    mode: human
 
 dataloader:
   num_workers: 0  # use the main thread to sample data
@@ -52,10 +85,10 @@ trainer:
   total_steps: 1000000
   log_freq: 500
   profile_freq: 500
-  eval_freq: 9999999999   # don't do eval
+  eval_freq: 10000   # don't do eval
 
 eval:
-  function: eval_placeholder
+  function: eval_offline
   num_ep: 25
   deterministic: true
 
