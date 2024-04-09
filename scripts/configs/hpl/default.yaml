@@ -41,6 +41,7 @@ dataset:
     batch_size: 32
     mode: trajectory
     segment_length: 50
+    padding_mode: none
 
 dataloader:
   num_workers: 0  # use the main thread to sample data

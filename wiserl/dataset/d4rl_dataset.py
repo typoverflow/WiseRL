@@ -9,14 +9,17 @@ from wiserl.utils.functional import discounted_cum_sum
 
 
 def pad_along_axis(
-    arr: np.ndarray, pad_to: int, axis: int = 0, fill_value: float = 0.0
+    arr: np.ndarray, pad_to: int, axis: int = 0, fill_value: float = 0.0, direction="right"
 ) -> np.ndarray:
     pad_size = pad_to - arr.shape[axis]
     if pad_size <= 0:
         return arr
 
     npad = [(0, 0)] * arr.ndim
-    npad[axis] = (0, pad_size)
+    if direction == "right":
+        npad[axis] = (0, pad_size)
+    else:
+        npad[axis] = (pad_size, 0)
     return np.pad(arr, pad_width=npad, mode="constant", constant_values=fill_value)
 
 class D4RLOfflineDataset(torch.utils.data.IterableDataset):
@@ -29,6 +32,7 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
         batch_size: Optional[int] = None,
         capacity: Optional[int] = None,
         mode: str="transition",
+        padding_mode: str="right",
         reward_scale: Optional[float] = None,
         reward_shift: Optional[float] = None,
         reward_normalize: bool = False,
@@ -40,6 +44,7 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
 
         self.env_name = env
         self.mode = mode
+        self.padding_mode = padding_mode
         self.batch_size = 1 if batch_size is None else batch_size
         self.segment_length = segment_length
         self.capacity = capacity
@@ -69,10 +74,29 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
             else :
                 sample = []
                 for _ in range(self.batch_size):
-                    traj_idx = np.random.choice(self.data_size, p=self.sample_prob)
-                    start_idx = np.random.choice(self.traj_len[traj_idx]-self.segment_length)
-                    s = {k: v[traj_idx, start_idx:start_idx+self.segment_length] for k, v in self.data.items()}
-                    s["timestep"] = np.arange(start_idx, start_idx+self.segment_length)
+                    if self.padding_mode == "right":
+                        traj_idx = np.random.choice(self.data_size, p=self.sample_prob)
+                        start_idx = np.random.choice(self.traj_len[traj_idx])
+                        s = {
+                            k: pad_along_axis(v[traj_idx, start_idx:min(start_idx+self.segment_length, self.traj_len[traj_idx])], pad_to=self.segment_length) for k, v in self.data.items()
+                        }
+                        s["timestep"] = np.arange(start_idx, start_idx+self.segment_length)
+                    elif self.padding_mode == "left":
+                        traj_idx = np.random.choice(self.data_size, p=self.sample_prob)
+                        end_idx = np.random.choice(self.traj_len[traj_idx])+1
+                        s = {
+                            k: pad_along_axis(v[traj_idx, max(0, end_idx-self.segment_length):end_idx], pad_to=self.segment_length, direction="left") for k, v in self.data.items()
+                        }
+                        s["timestep"] = np.maximum(np.arange(self.segment_length)+1-self.segment_length+end_idx, 0)
+                    elif self.padding_mode == "none":
+                        traj_idx = np.random.choice(self.data_size, p=self.sample_prob)
+                        while self.traj_len[traj_idx] < self.segment_length:
+                            traj_idx = np.random.choice(self.data_size, p=self.sample_prob)
+                        start_idx = np.random.choice(self.traj_len[traj_idx]-self.segment_length+1)
+                        s = {
+                            k: v[traj_idx, start_idx:start_idx+self.segment_length] for k, v in self.data.items()
+                        }
+                        s["timestep"] = np.arange(start_idx, start_idx+self.segment_length)
                     sample.append(s)
                 if len(sample) == 1: yield sample[0]
                 else:
