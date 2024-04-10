@@ -48,7 +48,7 @@ setup(
         "tqdm",
         "numpy",
         "torch",
-        "torchvision"
+        "torchvision",
         "pandas",
         "UtilsRL"
     ]
