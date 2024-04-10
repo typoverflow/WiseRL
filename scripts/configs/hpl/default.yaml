@@ -9,8 +9,8 @@ algorithm:
   future_len: 50
   z_dim: 64
   prior_sample: 5
-  vae_steps: 100000
-  reward_steps: 100000
+  vae_steps: 200000
+  reward_steps: 200000
   kl_loss_coef: 1.0
   kl_balance_coef: 0.8
 
@@ -24,7 +24,7 @@ wandb:
   entity: null
   project: null
 
-env: hopper-medium-replay-v2
+env: hopper-medium-expert-v2
 env_kwargs:
 env_wrapper:
 env_wrapper_kwargs:
@@ -66,13 +66,13 @@ network:
 
 dataset:
   - class: D4RLOfflineDataset
-    env: hopper-medium-replay-v2
+    env: hopper-medium-expert-v2
     batch_size: 64
     mode: trajectory
     segment_length: 100
     padding_mode: none
   - class: IPLComparisonOfflineDataset
-    env: hopper-medium-replay-v2
+    env: hopper-medium-expert-v2
     batch_size: 8
     mode: human
 

@@ -83,7 +83,7 @@ class HindsightPreferenceLearning(Algorithm):
         super().__init__(*args, **kwargs)
         # define the attention mask for future prediction
         causal_mask = torch.tril(torch.ones([seq_len, seq_len]), diagonal=-1).bool()
-        future_mask = torch.triu(torch.ones([seq_len, seq_len]), diagonal=future_len).bool()
+        future_mask = torch.triu(torch.ones([seq_len, seq_len]), diagonal=future_len+1).bool()
         self.future_attention_mask = torch.bitwise_or(causal_mask, future_mask).to(self.device)
         # self.vae_causal_mask = torch.tril(torch.ones([future_len, future_len]), diagonal=-1).bool().to(self.device)
         self.reward_criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
@@ -111,7 +111,7 @@ class HindsightPreferenceLearning(Algorithm):
             obs_dim=self.obs_dim,
             action_dim=self.action_dim,
             z_dim=self.z_dim,
-            num_time_delta=self.seq_len,
+            num_time_delta=self.future_len+1,  # +1 because sometimes we may predict the s-a itself
             embed_dim=dec_kwargs["embed_dim"],
             hidden_dims=dec_kwargs["hidden_dims"]
         )
@@ -250,7 +250,8 @@ class HindsightPreferenceLearning(Algorithm):
             "loss/actor_loss": actor_loss.item(),
             "misc/q_pred": q_pred.mean().item(),
             "misc/v_pred": v_pred.mean().item(),
-            "misc/adv": adv.mean().item()
+            "misc/adv": adv.mean().item(),
+            "misc/reward_prior": reward.mean().item()
         }
 
     def update_reward(self, obs_1, obs_2, action_1, action_2, label):
@@ -278,7 +279,8 @@ class HindsightPreferenceLearning(Algorithm):
         self.optim["reward"].step()
         return {
             "loss/reward_loss": reward_loss.item(),
-            "loss/reward_acc": reward_acc.item()
+            "loss/reward_acc": reward_acc.item(),
+            "misc/reward_post": reward_total.mean().item()
         }
 
     def update_vae(self, obs: torch.Tensor, action: torch.Tensor, timestep: torch.Tensor, mask: torch.Tensor):
@@ -301,18 +303,17 @@ class HindsightPreferenceLearning(Algorithm):
 
         # select the time index
         num_select = B * 4
-        x = torch.randint(0, L-1, [num_select, ]).to(self.device)
-        y = torch.randint(0, 999999, [num_select, ]).to(self.device)
-        y = torch.remainder(y, L-x-1) + x + 1
-
+        x = torch.randint(0, L, [num_select, ]).to(self.device)
+        delta_t = torch.randint(0, self.future_len+1, [num_select, ]).to(self.device)
+        y = (x+delta_t).clip(max=L-1)
+        delta_t = (y-x).repeat(B, 1)
         input_obs_action = obs_action[:, x, :]
         input_z_posterior = z_posterior[:, x, :]
-        input_delta_t = (y - x).repeat(B, 1)
         target_obs_action = obs_action[:, y, :]
         pred_obs_action = self.network.decoder(
             input_obs_action,
             input_z_posterior,
-            input_delta_t
+            delta_t
         )
 
         recon_loss = torch.nn.functional.mse_loss(pred_obs_action, target_obs_action, reduction="none")
