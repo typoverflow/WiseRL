@@ -230,6 +230,8 @@ class HindsightPreferenceLearning(Algorithm):
         actor_loss.backward()
         self.optim["actor"].step()
 
+        sync_target(self.network.critic, self.target_network.critic, tau=self.tau)
+
         # update critic
         with torch.no_grad():
             repeated_obs_action = torch.concat([obs, action], dim=-1)
