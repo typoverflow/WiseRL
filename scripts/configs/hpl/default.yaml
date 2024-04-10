@@ -6,12 +6,12 @@ algorithm:
   discount: 0.99
   tau: 0.005
   seq_len: 100
-  future_len: 50
-  z_dim: 64
-  prior_sample: 5
-  vae_steps: 200000
+  future_len: 5
+  z_dim: 64 # [64, 128]
+  prior_sample: 5 # [5, 10]
+  vae_steps: 200000 # tune
   reward_steps: 200000
-  kl_loss_coef: 1.0
+  kl_loss_coef: 1.0 # [0.5, 5.0]
   kl_balance_coef: 0.8
 
 checkpoint: null
@@ -41,12 +41,12 @@ network:
     num_heads: 4
   decoder:
     embed_dim: 64
-    hidden_dims: [256, 256]
+    hidden_dims: [256, 256] # shallower?
   prior:
     hidden_dims: [256, 256]
   reward:
     class: MLP
-    hidden_dims: [256, 256]
+    hidden_dims: [256, 256] # tune
   actor:
     class: SquashedGaussianActor
     hidden_dims: [256, 256]
@@ -57,17 +57,17 @@ network:
   critic:
     class: Critic
     ensemble_size: 2
-    hidden_dims: [256, 256]
+    hidden_dims: [256, 256, 256]
   value:
     class: Critic
     ensemble_size: 1
-    hidden_dims: [256, 256]
+    hidden_dims: [256, 256, 256]
 
 
 dataset:
   - class: D4RLOfflineDataset
     env: hopper-medium-expert-v2
-    batch_size: 64
+    batch_size: 64 # [64, 128]
     mode: trajectory
     segment_length: 100
     padding_mode: none
@@ -77,8 +77,12 @@ dataset:
     mode: human
 
 dataloader:
-  num_workers: 0  # use the main thread to sample data
-  batch_size: null  # do not merge the data along batch axis
+  - num_workers: 2
+    batch_size: null
+  - num_workers: 2
+    batch_size: null
+  # num_workers: 0  # use the main thread to sample data
+  # batch_size: null  # do not merge the data along batch axis
 
 trainer:
   env_freq: null
@@ -89,7 +93,7 @@ trainer:
 
 eval:
   function: eval_offline
-  num_ep: 25
+  num_ep: 10
   deterministic: true
 
 schedulers:

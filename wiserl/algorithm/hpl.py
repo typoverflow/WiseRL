@@ -233,7 +233,7 @@ class HindsightPreferenceLearning(Algorithm):
         # update critic
         with torch.no_grad():
             repeated_obs_action = torch.concat([obs, action], dim=-1)
-            repeated_obs_action = repeated_obs_action.repeat([5, 1, 1, 1])
+            repeated_obs_action = repeated_obs_action.repeat([self.prior_sample, 1, 1, 1])
             z_prior, *_ = self.network.prior.sample(repeated_obs_action, deterministic=False)
             reward = self.network.reward(torch.concat([repeated_obs_action, z_prior], dim=-1)).mean(dim=0)
             target_q = self.network.value(next_obs)
