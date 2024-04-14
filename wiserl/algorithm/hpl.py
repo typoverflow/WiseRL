@@ -63,6 +63,7 @@ class HindsightPreferenceLearning(Algorithm):
         prior_sample: int = 5,
         kl_loss_coef: float = 1.0,
         kl_balance_coef: float = 0.8,
+        reg_coef: float = 0.01,
         vae_steps: int = 100000,
         reward_steps: int = 100000,
         **kwargs
@@ -78,6 +79,7 @@ class HindsightPreferenceLearning(Algorithm):
         self.prior_sample = prior_sample
         self.kl_loss_coef = kl_loss_coef
         self.kl_balance_coef = kl_balance_coef
+        self.reg_coef = reg_coef
         self.vae_steps = vae_steps
         self.reward_steps = reward_steps
         super().__init__(*args, **kwargs)
@@ -269,6 +271,9 @@ class HindsightPreferenceLearning(Algorithm):
                     do_embedding=True
                 )
             )
+            repeated_obs_action = obs_action_total.repeat([self.prior_sample, 1, 1, 1])
+            z_prior, _, info = self.network.prior.sample(repeated_obs_action, deterministic=False)
+        # cross entropy loss
         reward_total = self.network.reward(torch.concat([obs_action_total, z_posterior], dim=-1))
         r1, r2 = torch.chunk(reward_total, 2, dim=0)
         logit = r2.sum(dim=1) - r1.sum(dim=1)
@@ -276,11 +281,18 @@ class HindsightPreferenceLearning(Algorithm):
         reward_loss = self.reward_criterion(logit, label).mean()
         with torch.no_grad():
             reward_acc = ((logit > 0) == torch.round(label)).float().mean()
+        # regularization
+        if self.reg_coef > 0.0:
+            reward_prior = self.network.reward(torch.concat([repeated_obs_action, z_prior], dim=-1))
+            reg_loss = reward_prior.square().mean()
+        else:
+            reg_loss = torch.tensor(0.0)
         self.optim["reward"].zero_grad()
-        reward_loss.backward()
+        (reward_loss+self.reg_coef*reg_loss).backward()
         self.optim["reward"].step()
         return {
             "loss/reward_loss": reward_loss.item(),
+            "loss/reg_loss": reg_loss.item(),
             "loss/reward_acc": reward_acc.item(),
             "misc/reward_post": reward_total.mean().item()
         }

@@ -13,6 +13,7 @@ algorithm:
   reward_steps: 200000
   kl_loss_coef: 1.0 # [0.5, 5.0]
   kl_balance_coef: 0.8
+  reg_coef: 0.01
 
 checkpoint: null
 seed: 0
