@@ -99,6 +99,9 @@ class HindsightPreferenceLearning(Algorithm):
             embed_dim=enc_kwargs["embed_dim"],
             num_layers=enc_kwargs["num_layers"],
             num_heads=enc_kwargs["num_heads"],
+            attention_dropout=enc_kwargs["dropout"],
+            residual_dropout=enc_kwargs["dropout"],
+            embed_dropout=enc_kwargs["dropout"],
             causal=False,
             seq_len=self.seq_len
         )
@@ -294,7 +297,9 @@ class HindsightPreferenceLearning(Algorithm):
             "loss/reward_loss": reward_loss.item(),
             "loss/reg_loss": reg_loss.item(),
             "loss/reward_acc": reward_acc.item(),
-            "misc/reward_post": reward_total.mean().item()
+            "misc/reward_post": reward_total.mean().item(),
+            "misc/reward_post_abs": reward_total.abs().mean().item(),
+            "misc/reward_prior_abs": reward_prior.abs().mean().item(),
         }
 
     def update_vae(self, obs: torch.Tensor, action: torch.Tensor, timestep: torch.Tensor, mask: torch.Tensor):
