@@ -76,8 +76,14 @@ dataset:
     env: hopper-medium-expert-v2
     batch_size: 8
     mode: human
+  - class: D4RLOfflineDataset
+    env: hopper-medium-expert-v2
+    batch_size: 6400
+    mode: transition
 
 dataloader:
+  - num_workers: 2
+    batch_size: null
   - num_workers: 2
     batch_size: null
   - num_workers: 2

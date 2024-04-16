@@ -177,7 +177,7 @@ class HindsightPreferenceLearning(Algorithm):
         return action.squeeze().cpu().numpy()
 
     def train_step(self, batches, step: int, total_steps: int):
-        unlabel_batch, pref_batch = batches
+        unlabel_batch, pref_batch, trans_batch = batches
         if step < self.vae_steps:
             metrics = self.update_vae(
                 obs=unlabel_batch["obs"],
@@ -198,10 +198,10 @@ class HindsightPreferenceLearning(Algorithm):
                 return metrics
             else:
                 agent_metrics = self.update_agent(
-                    obs=unlabel_batch["obs"],
-                    action=unlabel_batch["action"],
-                    next_obs=unlabel_batch["next_obs"],
-                    terminal=unlabel_batch["terminal"]
+                    obs=trans_batch["obs"],
+                    action=trans_batch["action"],
+                    next_obs=trans_batch["next_obs"],
+                    terminal=trans_batch["terminal"]
                 )
                 metrics.update(agent_metrics)
                 return metrics
