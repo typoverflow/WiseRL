@@ -288,8 +288,10 @@ class HindsightPreferenceLearning(Algorithm):
         if self.reg_coef > 0.0:
             reward_prior = self.network.reward(torch.concat([repeated_obs_action, z_prior], dim=-1))
             reg_loss = reward_prior.square().mean()
+            reward_prior_abs = reward_prior.abs().mean().item()
         else:
             reg_loss = torch.tensor(0.0)
+            reward_prior_abs = torch.tensor(0.0)
         self.optim["reward"].zero_grad()
         (reward_loss+self.reg_coef*reg_loss).backward()
         self.optim["reward"].step()
@@ -299,7 +301,7 @@ class HindsightPreferenceLearning(Algorithm):
             "loss/reward_acc": reward_acc.item(),
             "misc/reward_post": reward_total.mean().item(),
             "misc/reward_post_abs": reward_total.abs().mean().item(),
-            "misc/reward_prior_abs": reward_prior.abs().mean().item(),
+            "misc/reward_prior_abs": reward_prior_abs,
         }
 
     def update_vae(self, obs: torch.Tensor, action: torch.Tensor, timestep: torch.Tensor, mask: torch.Tensor):
