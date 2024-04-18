@@ -180,7 +180,7 @@ class HindsightPreferenceLearning(Algorithm):
         return action.squeeze().cpu().numpy()
 
     def train_step(self, batches, step: int, total_steps: int):
-        unlabel_batch, pref_batch, trans_batch = batches
+        unlabel_batch, pref_batch, rl_batch = batches
         if step < self.vae_steps:
             metrics = self.update_vae(
                 obs=unlabel_batch["obs"],
@@ -190,24 +190,26 @@ class HindsightPreferenceLearning(Algorithm):
             )
             return metrics
         else:
-            metrics = self.update_reward(
-                obs_1=pref_batch["obs_1"],
-                obs_2=pref_batch["obs_2"],
-                action_1=pref_batch["action_1"],
-                action_2=pref_batch["action_2"],
-                label=pref_batch["label"]
-            )
             if step < self.vae_steps+self.reward_steps:
+                metrics = self.update_reward(
+                    obs_1=pref_batch["obs_1"],
+                    obs_2=pref_batch["obs_2"],
+                    action_1=pref_batch["action_1"],
+                    action_2=pref_batch["action_2"],
+                    label=pref_batch["label"],
+                    extra_obs=rl_batch["obs"],
+                    extra_action=rl_batch["action"]
+                )
                 return metrics
             else:
                 agent_metrics = self.update_agent(
-                    obs=trans_batch["obs"],
-                    action=trans_batch["action"],
-                    next_obs=trans_batch["next_obs"],
-                    terminal=trans_batch["terminal"]
+                    obs=rl_batch["obs"],
+                    action=rl_batch["action"],
+                    next_obs=rl_batch["next_obs"],
+                    terminal=rl_batch["terminal"]
                 )
-                metrics.update(agent_metrics)
-                return metrics
+                # metrics.update(agent_metrics)
+                return agent_metrics
 
 
     def update_agent(self, obs, action, next_obs, terminal):
@@ -261,7 +263,7 @@ class HindsightPreferenceLearning(Algorithm):
             "misc/reward_prior": reward.mean().item()
         }
 
-    def update_reward(self, obs_1, obs_2, action_1, action_2, label):
+    def update_reward(self, obs_1, obs_2, action_1, action_2, label, extra_obs, extra_action):
         obs_action_1 = torch.concat([obs_1, action_1], dim=-1)
         obs_action_2 = torch.concat([obs_2, action_2], dim=-1)
         obs_action_total = torch.concat([obs_action_1, obs_action_2], dim=0)
@@ -274,8 +276,9 @@ class HindsightPreferenceLearning(Algorithm):
                     do_embedding=True
                 )
             )
-            repeated_obs_action = obs_action_total.repeat([self.prior_sample, 1, 1, 1])
-            z_prior, _, info = self.network.prior.sample(repeated_obs_action, deterministic=False)
+            obs_action_extra = torch.concat([extra_obs, extra_action], dim=-1)
+            repeated_obs_action_extra = obs_action_extra.repeat([self.prior_sample, 1, 1])
+            z_prior, _, info = self.network.prior.sample(repeated_obs_action_extra, deterministic=False)
         # cross entropy loss
         reward_total = self.network.reward(torch.concat([obs_action_total, z_posterior], dim=-1))
         r1, r2 = torch.chunk(reward_total, 2, dim=0)
@@ -285,9 +288,9 @@ class HindsightPreferenceLearning(Algorithm):
         with torch.no_grad():
             reward_acc = ((logit > 0) == torch.round(label)).float().mean()
         # regularization
+        reward_prior = self.network.reward(torch.concat([repeated_obs_action_extra, z_prior], dim=-1))
         if self.reg_coef > 0.0:
-            reward_prior = self.network.reward(torch.concat([repeated_obs_action, z_prior], dim=-1))
-            reg_loss = reward_prior.square().mean()
+            reg_loss = torch.nn.functional.huber_loss(reward_prior, torch.zeros_like(reward_prior), delta=1.0)
         else:
             reg_loss = torch.tensor(0.0)
         self.optim["reward"].zero_grad()
