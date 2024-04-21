@@ -38,7 +38,7 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
         reward_normalize: bool = False,
     ):
         super().__init__()
-        assert mode in {"transition", "trajectory"}, "Supported mode for D4RLOfflineDataset: \{transition, trajectory\}."
+        assert mode in {"transition", "trajectory"}, "Supported mode for D4RLOfflineDataset: {transition, trajectory}."
         assert reward_scale is None == reward_shift is None, "reward_scale and reward_shift should be set simultaneously."
         assert not reward_normalize or reward_shift is None, "reward scale & shift and reward normalize can not be set simultaneously."
 
