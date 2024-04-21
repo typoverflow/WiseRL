@@ -79,7 +79,7 @@ dataset:
     mode: human
   - class: D4RLOfflineDataset
     env: hopper-medium-expert-v2
-    batch_size: 512
+    batch_size: 6400
     mode: transition
 
 dataloader:
