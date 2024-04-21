@@ -19,7 +19,8 @@ if __name__ == "__main__":
         name="seed"+str(args["seed"]),
         logger_config={
             "TensorboardLogger": {},
-            "WandbLogger": {**args["wandb"], "config": args, "settings": wandb.Settings(_disable_stats=True)}
+            "WandbLogger": {**args["wandb"], "config": args, "settings": wandb.Settings(_disable_stats=True)},
+            "CsvLogger": {"activate": args.get("csv", False)}
         },
         backup_stdout=True,
         activate=not args["debug"]
