@@ -6,6 +6,17 @@ import torch.nn as nn
 
 ModuleType = Type[nn.Module]
 
+def weight_init(m: nn.Module, gain: int = 1) -> None:
+    if isinstance(m, nn.Linear):
+        nn.init.orthogonal_(m.weight.data, gain=gain)
+        if hasattr(m.bias, "data"):
+            m.bias.data.fill_(0.0)
+    if isinstance(m, EnsembleLinear):
+        for i in range(m.ensemble_size):
+            nn.init.orthogonal_(m.weight.data[..., i], gain=gain)
+        if hasattr(m.bias, "data"):
+            m.bias.data.fill_(0.0)
+
 def miniblock(
     input_dim: int,
     output_dim: int = 0,

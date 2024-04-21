@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from functools import partial
 from typing import Any, Dict, Optional, Sequence, Tuple, Type, Union
 
 import numpy as np
@@ -6,6 +7,7 @@ import torch
 import torch.nn as nn
 from torch.distributions import Categorical, Normal
 
+from wiserl.module.net.basic import weight_init
 from wiserl.module.net.mlp import MLP, EnsembleMLP
 from wiserl.utils.distributions import TanhNormal
 
@@ -64,6 +66,7 @@ class DeterministicActor(BaseActor):
         self,
         input_dim: int,
         output_dim: int,
+        ortho_init: bool=False,
         device: Union[str, int, torch.device]="cpu",
         *,
         ensemble_size: int = 1,
@@ -78,6 +81,7 @@ class DeterministicActor(BaseActor):
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.hidden_dims = hidden_dims.copy()
+        self.ortho_init = ortho_init
         self.device = device
 
         if isinstance(hidden_dims, int):
@@ -106,6 +110,12 @@ class DeterministicActor(BaseActor):
             )
         else:
             raise ValueError(f"ensemble size should be int >= 1.")
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        if self.ortho_init:
+            self.apply(partial(weight_init, gain=float(self.ortho_init)))
 
     def forward(self, input: torch.Tensor):
         return self.output_layer(input)
@@ -149,6 +159,7 @@ class SquashedDeterministicActor(DeterministicActor):
         self,
         input_dim: int,
         output_dim: int,
+        ortho_init: bool=False,
         device: Union[str, int, torch.device]="cpu",
         *,
         ensemble_size: int = 1,
@@ -158,7 +169,7 @@ class SquashedDeterministicActor(DeterministicActor):
         dropout: Optional[Union[float, Sequence[float]]] = None,
         share_hidden_layer: Union[Sequence[bool], bool] = False,
     ) -> None:
-        super().__init__(input_dim, output_dim, device, ensemble_size=ensemble_size, hidden_dims=hidden_dims, norm_layer=norm_layer, activation=activation, dropout=dropout, share_hidden_layer=share_hidden_layer)
+        super().__init__(input_dim, output_dim, ortho_init, device, ensemble_size=ensemble_size, hidden_dims=hidden_dims, norm_layer=norm_layer, activation=activation, dropout=dropout, share_hidden_layer=share_hidden_layer)
         self.actor_type = "SqushedDeterministicActor"
 
     def sample(self, obs: torch.Tensor, *args, **kwargs) -> Tuple[torch.Tensor, torch.Tensor, Dict]:
@@ -195,6 +206,7 @@ class ClippedDeterministicActor(DeterministicActor):
         self,
         input_dim: int,
         output_dim: int,
+        ortho_init: bool=False,
         device: Union[str, int, torch.device]="cpu",
         *,
         ensemble_size: int = 1,
@@ -204,7 +216,7 @@ class ClippedDeterministicActor(DeterministicActor):
         dropout: Optional[Union[float, Sequence[float]]] = None,
         share_hidden_layer: Union[Sequence[bool], bool] = False,
     ) -> None:
-        super().__init__(input_dim, output_dim, device, ensemble_size=ensemble_size, hidden_dims=hidden_dims, norm_layer=norm_layer, activation=activation, dropout=dropout, share_hidden_layer=share_hidden_layer)
+        super().__init__(input_dim, output_dim, ortho_init, device, ensemble_size=ensemble_size, hidden_dims=hidden_dims, norm_layer=norm_layer, activation=activation, dropout=dropout, share_hidden_layer=share_hidden_layer)
         self.actor_type = "ClippedDeterministicActor"
 
     def sample(self, obs: torch.Tensor, *args, **kwargs) -> Tuple[torch.Tensor, torch.Tensor, Dict]:
@@ -249,6 +261,7 @@ class GaussianActor(BaseActor):
         logstd_min: float = -20.0,
         logstd_max: float = 2.0,
         logstd_hard_clip: bool=True,
+        ortho_init: bool=False,
         device: Union[str, int, torch.device]="cpu",
         *,
         ensemble_size: int = 1,
@@ -264,6 +277,7 @@ class GaussianActor(BaseActor):
         self.input_dim = input_dim
         self.output_dim = output_dim
         self.reparameterize = reparameterize
+        self.ortho_init = ortho_init
         self.device = device
         self.logstd_hard_clip = logstd_hard_clip
 
@@ -306,6 +320,11 @@ class GaussianActor(BaseActor):
 
         self.register_buffer("logstd_min", torch.tensor(logstd_min, dtype=torch.float32))
         self.register_buffer("logstd_max", torch.tensor(logstd_max, dtype=torch.float32))
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        if self.ortho_init:
+            self.apply(partial(weight_init, gain=float(self.ortho_init)))
 
     def forward(self, input: torch.Tensor):
         out = self.output_layer(input)
@@ -400,6 +419,7 @@ class SquashedGaussianActor(GaussianActor):
         logstd_min: float = -20.0,
         logstd_max: float = 2.0,
         logstd_hard_clip: bool=True,
+        ortho_init: bool=False,
         device: Union[str, int, torch.device]="cpu",
         *,
         ensemble_size: int = 1,
@@ -410,7 +430,7 @@ class SquashedGaussianActor(GaussianActor):
         share_hidden_layer: Union[Sequence[bool], bool] = False,
     ) -> None:
         super().__init__(
-            input_dim, output_dim, reparameterize, conditioned_logstd, fix_logstd, logstd_min, logstd_max, logstd_hard_clip, device,
+            input_dim, output_dim, reparameterize, conditioned_logstd, fix_logstd, logstd_min, logstd_max, logstd_hard_clip, ortho_init, device,
             ensemble_size=ensemble_size,
             hidden_dims=hidden_dims,
             norm_layer=norm_layer,
@@ -500,6 +520,7 @@ class ClippedGaussianActor(GaussianActor):
         logstd_min: float = -20.0,
         logstd_max: float = 2.0,
         logstd_hard_clip: bool=True,
+        ortho_init: bool=False,
         device: Union[str, int, torch.device]="cpu",
         *,
         ensemble_size: int = 1,
@@ -510,7 +531,7 @@ class ClippedGaussianActor(GaussianActor):
         share_hidden_layer: Union[Sequence[bool], bool] = False,
     ) -> None:
         super().__init__(
-            input_dim, output_dim, reparameterize, conditioned_logstd, fix_logstd, logstd_min, logstd_max, logstd_hard_clip, device,
+            input_dim, output_dim, reparameterize, conditioned_logstd, fix_logstd, logstd_min, logstd_max, logstd_hard_clip, ortho_init, device,
             ensemble_size=ensemble_size,
             hidden_dims=hidden_dims,
             norm_layer=norm_layer,
@@ -588,6 +609,7 @@ class CategoricalActor(BaseActor):
         self,
         input_dim: int,
         output_dim: int,
+        ortho_init: bool=False,
         device: Union[str, int, torch.device]="cpu",
         *,
         ensemble_size: int = 1,
@@ -602,6 +624,7 @@ class CategoricalActor(BaseActor):
         self.actor_type = "CategoricalActor"
         self.input_dim = input_dim
         self.output_dim = output_dim
+        self.ortho_init = ortho_init
         self.device = device
 
         if isinstance(hidden_dims, int):
@@ -630,6 +653,12 @@ class CategoricalActor(BaseActor):
             )
         else:
             raise ValueError(f"ensemble size should be int >= 1.")
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        if self.ortho_init:
+            self.apply(partial(weight_init, gain=float(self.ortho_init)))
 
     def forward(self, input: torch.Tensor):
         out = self.output_layer(input)

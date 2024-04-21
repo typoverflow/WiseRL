@@ -1,8 +1,10 @@
+from functools import partial
 from typing import Any, Callable, Dict, Optional, Sequence, Type, Union
 
 import torch
 import torch.nn as nn
 
+from wiserl.module.net.basic import weight_init
 from wiserl.module.net.mlp import MLP, EnsembleMLP
 
 ModuleType = Type[nn.Module]
@@ -22,6 +24,7 @@ class Critic(nn.Module):
         self,
         input_dim: int,
         output_dim: int=1,
+        ortho_init: bool=False,
         device: Union[str, int, torch.device] = "cpu",
         *,
         ensemble_size: int=1,
@@ -35,6 +38,7 @@ class Critic(nn.Module):
         self.critic_type = "Critic"
         self.input_dim = input_dim
         self.output_dim = output_dim
+        self.ortho_init = ortho_init
         self.device = device
         self.ensemble_size = ensemble_size
 
@@ -64,6 +68,12 @@ class Critic(nn.Module):
             )
         else:
             raise ValueError(f"ensemble size should be int >= 1.")
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        if self.ortho_init:
+            self.apply(partial(weight_init, gain=float(self.ortho_init)))
 
     def forward(self, obs: torch.Tensor, action: Optional[torch.Tensor]=None, *args, **kwargs) -> torch.Tensor:
         """Compute the Q-value (when action is given) or V-value (when action is None).
@@ -111,6 +121,7 @@ class DoubleCritic(nn.Module):
         output_dim: int=1,
         critic_num: int=2,
         reduce: Union[str, Callable]="min",
+        ortho_init: bool=False,
         device: Union[str, int, torch.device]="cpu",
         *,
         hidden_dims: Sequence[int] = [],
@@ -122,6 +133,7 @@ class DoubleCritic(nn.Module):
         self.critic_type = "DoubleCritic"
         self.input_dim = input_dim
         self.output_dim = output_dim
+        self.ortho_init = ortho_init
         self.device = device
         self.critic_num = critic_num
 
@@ -143,6 +155,12 @@ class DoubleCritic(nn.Module):
             self.reduce = self._reduce_fn_[reduce]
         else:
             self.reduce = reduce
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        if self.ortho_init:
+            self.apply(partial(weight_init, gain=float(self.ortho_init)))
 
     def forward(self, obs: torch.Tensor, action: Optional[torch.Tensor]=None, reduce: bool=True, *args, **kwargs) -> torch.Tensor:
         """Compute the Q-value (when action is given) or V-value (when action is None), and aggregate them with the pre-defined reduce method.
