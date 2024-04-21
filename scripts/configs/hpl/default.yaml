@@ -50,11 +50,11 @@ network:
     ortho_init: false
   reward:
     class: Critic
-    hidden_dims: [256, 256] # tune
+    hidden_dims: [256, 256, 256] # tune
     ortho_init: false
   actor:
     class: SquashedGaussianActor
-    hidden_dims: [256, 256]
+    hidden_dims: [256, 256, 256]
     reparameterize: false
     conditioned_logstd: false
     logstd_min: -5

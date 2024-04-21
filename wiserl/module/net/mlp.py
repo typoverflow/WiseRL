@@ -1,9 +1,10 @@
+from functools import partial
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Type, Union
 
 import torch
 import torch.nn as nn
 
-from wiserl.module.net.basic import EnsembleLinear, miniblock
+from wiserl.module.net.basic import EnsembleLinear, miniblock, weight_init
 
 ModuleType = Type[nn.Module]
 
@@ -40,10 +41,12 @@ class MLP(nn.Module):
         norm_layer: Optional[Union[ModuleType, Sequence[ModuleType]]] = None,
         activation: Optional[Union[ModuleType, Sequence[ModuleType]]] = nn.ReLU,
         dropout: Optional[Union[float, Sequence[float]]] = None,
+        ortho_init: bool = False,
         device: Optional[Union[str, int, torch.device]] = "cpu",
         linear_layer: nn.Module=nn.Linear
     ) -> None:
         super().__init__()
+        self.ortho_init = ortho_init
         if norm_layer:
             if isinstance(norm_layer, list):
                 assert len(norm_layer) == len(hidden_dims)
@@ -82,6 +85,11 @@ class MLP(nn.Module):
         self.output_dim = output_dim or hidden_dims[-1]
 
         self.model = nn.Sequential(*model)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        if self.ortho_init:
+            self.apply(partial(weight_init, gain=float(self.ortho_init)))
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         return self.model(input)        # do we need to flatten x staring at dim=1 ?
@@ -123,10 +131,12 @@ class EnsembleMLP(nn.Module):
         activation: Optional[Union[ModuleType, Sequence[ModuleType]]] = nn.ReLU,
         dropout: Optional[Union[float, Sequence[float]]] = None,
         share_hidden_layer: Union[Sequence[bool], bool] = False,
+        ortho_init: bool = False,
         device: Optional[Union[str, int, torch.device]] = "cpu",
     ) -> None:
         super().__init__()
         self.ensemble_size = ensemble_size
+        self.ortho_init = ortho_init
 
         if norm_layer:
             if isinstance(norm_layer, list):
@@ -181,6 +191,11 @@ class EnsembleMLP(nn.Module):
         self.output_dim = output_dim or hidden_dims[-1]
 
         self.model = nn.Sequential(*model)
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        if self.ortho_init:
+            self.apply(partial(weight_init, gain=float(self.ortho_init)))
 
     def forward(self, input: torch.Tensor):
         return self.model(input)
