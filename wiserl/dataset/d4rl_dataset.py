@@ -166,7 +166,8 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
             "next_obs": np.asarray(next_obs_),
             "reward": np.asarray(reward_)[..., None],
             "terminal": np.asarray(terminal_)[..., None],
-            "mask": np.ones([len(obs_), 1], dtype=np.float32)
+            "mask": np.ones([len(obs_), 1], dtype=np.float32),
+            "end": np.asarray(end_)[..., None],
         }
 
         if self.reward_normalize:
@@ -228,3 +229,43 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
                 "mask": np.asarray([t["mask"] for t in traj]),
             }
         del env
+
+    @torch.no_grad()
+    def relabel_reward(self, agent):
+        assert hasattr(agent, "select_reward"), f"Agent {agent} must support relabel_reward!"
+        bs = 256
+        for i_batch in range((self.data_size-1) // bs + 1):
+            idx = np.arange(i_batch*bs, min((i_batch+1)*bs, self.data_size))
+            batch = {
+                "obs": self.data["obs"][idx],
+                "action": self.data["action"][idx],
+                "next_obs": self.data["next_obs"][idx]
+            }
+            batch = agent.format_batch(batch)
+            reward = agent.select_reward(batch).detach().cpu().numpy()
+            reward = reward * self.data["mask"][idx]
+            self.data["reward"][idx] = reward
+
+        if self.mode == "trajectory":
+            # CHECK: may be bug. the max and min returns are not consistent with those computed in transition mode
+            return_ = self.data["reward"].copy()
+            for t in reversed(range(return_.shape[1]-1)):
+                return_[t] += return_[t+1]
+            self.data["return"] = return_
+            # normalization
+            max_return = max(abs(return_[:, 0].max()), abs(return_[:, 0].min()))
+            norm = 1000 / max(max_return, 1.0)
+            self.data["reward"] *= norm
+            self.data["return"] *= norm
+        elif self.mode == "transition":
+            ep_reward_ = []
+            episode_reward = 0
+            N = self.data["reward"].shape[0]
+            for i in range(N):
+                episode_reward += self.data["reward"][i]
+                if self.data["end"][i]:
+                    ep_reward_.append(episode_reward)
+                    episode_reward = 0
+            max_return = max(abs(min(ep_reward_)).item(), abs(max(ep_reward_)).item())
+            norm = 1000 / max(max_return, 1.0)
+            self.data["reward"] *= norm

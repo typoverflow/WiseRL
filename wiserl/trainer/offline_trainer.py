@@ -78,7 +78,8 @@ class OfflineTrainer(object):
 
     def train(self):
         self.logger.info("Set up datasets and dataloaders")
-        self.setup_datasets_and_dataloaders()
+        self._datasets = self.setup_datasets(self.dataset_kwargs)
+        self._dataloaders, self._dataloaders_iter = self.setup_dataloaders(self._datasets, self.dataloader_kwargs)
 
         # start training
         self.logger.info("Start Training")
@@ -123,44 +124,44 @@ class OfflineTrainer(object):
         if self._eval_env is not None:
             self._eval_env.close()
 
-    def setup_datasets_and_dataloaders(self):
-        assert self.env is not None, "Env is not initialized!"
-        assert self._datasets is None, "Dataset should not be set up twice."
-        assert self._dataloaders is None, "Dataloaders should not be set up twice."
-
+    def setup_datasets(self, dataset_kwargs=None):
         observation_space = self.env.observation_space
         action_space = self.env.action_space
 
         # parse the dataset arguments
-        if self.dataset_kwargs is None:
+        if dataset_kwargs is None:
             return
-        if isinstance(self.dataset_kwargs, dict):
-            self.dataset_kwargs = [self.dataset_kwargs, ]
-        elif not isinstance(self.dataset_kwargs, list):
+        if isinstance(dataset_kwargs, dict):
+            dataset_kwargs = [dataset_kwargs, ]
+        elif not isinstance(dataset_kwargs, list):
             raise TypeError(f"The type of dataset_kwargs should be either list or dict.")
 
-        self._datasets = []
-        for kwargs in self.dataset_kwargs:
+        _datasets = []
+        for kwargs in dataset_kwargs:
             cls = kwargs.pop("class")
             ds = vars(wiserl.dataset)[cls](
                     observation_space,
                     action_space,
                     **kwargs
                 )
-            self._datasets.append(ds)
+            _datasets.append(ds)
 
-        if self.dataloader_kwargs is None:
-            self.dataloader_kwargs = {}
-        if isinstance(self.dataloader_kwargs, dict):
-            self.dataloader_kwargs = [self.dataloader_kwargs.copy() for _ in range(len(self._datasets))]
-        elif not isinstance(self.dataloader_kwargs, list):
+        return _datasets
+
+    def setup_dataloaders(self, datasets, dataloader_kwargs=None):
+        if dataloader_kwargs is None:
+            dataloader_kwargs = {}
+        if isinstance(dataloader_kwargs, dict):
+            dataloader_kwargs = [dataloader_kwargs.copy() for _ in range(len(datasets))]
+        elif not isinstance(dataloader_kwargs, list):
             raise TypeError(f"The type of dataloader kwargs should be either dict or list.")
 
-        self._dataloaders = []
-        for ds, dl_kwargs in zip(self._datasets, self.dataloader_kwargs):
-            self._dataloaders.append(torch.utils.data.DataLoader(ds, **dl_kwargs))
+        _dataloaders = []
+        for ds, dl_kwargs in zip(datasets, dataloader_kwargs):
+            _dataloaders.append(torch.utils.data.DataLoader(ds, **dl_kwargs))
 
-        self._dataloaders_iter = [iter(dl) for dl in self._dataloaders]
+        _dataloaders_iter = [iter(dl) for dl in _dataloaders]
+        return _dataloaders, _dataloaders_iter
 
     def evaluate(self):
         assert not self.algorithm.training

@@ -1,4 +1,5 @@
 import itertools
+import os
 from operator import itemgetter
 from typing import Any, Dict, Optional, Sequence, Tuple, Type
 
@@ -65,6 +66,7 @@ class HindsightPreferenceLearning(Algorithm):
         kl_balance_coef: float = 0.8,
         reg_coef: float = 0.01,
         vae_steps: int = 100000,
+        rm_label: bool = True,
         reward_steps: int = 100000,
         **kwargs
     ):
@@ -82,6 +84,7 @@ class HindsightPreferenceLearning(Algorithm):
         self.reg_coef = reg_coef
         self.vae_steps = vae_steps
         self.reward_steps = reward_steps
+        self.rm_label = rm_label
         super().__init__(*args, **kwargs)
         # define the attention mask for future prediction
         causal_mask = torch.tril(torch.ones([seq_len, seq_len]), diagonal=-1).bool()
@@ -179,40 +182,46 @@ class HindsightPreferenceLearning(Algorithm):
         action, *_ = self.network.actor.sample(obs, deterministic=deterministic)
         return action.squeeze().cpu().numpy()
 
-    def train_step(self, batches, step: int, total_steps: int):
+    def select_reward(self, batch, deterministic=False):
+        obs, action = batch["obs"], batch["action"]
+        repeated_obs_action = torch.concat([obs, action], dim=-1)
+        repeated_obs_action = repeated_obs_action.repeat([self.prior_sample, 1, 1])
+        z_prior, *_ = self.network.prior.sample(repeated_obs_action, deterministic=deterministic)
+        reward = self.network.reward(torch.concat([repeated_obs_action, z_prior], dim=-1)).mean(dim=0)
+        return reward.detach()
+
+    def pretrain_step(self, batches, step: int, total_steps: int):
         unlabel_batch, pref_batch, rl_batch = batches
+        assert step <= self.reward_steps + self.vae_steps, "pretrain step overflow"
         if step < self.vae_steps:
-            metrics = self.update_vae(
+            return self.update_vae(
                 obs=unlabel_batch["obs"],
                 action=unlabel_batch["action"],
                 timestep=unlabel_batch["timestep"],
                 mask=unlabel_batch["mask"]
             )
-            return metrics
         else:
-            if step < self.vae_steps+self.reward_steps:
-                metrics = self.update_reward(
-                    obs_1=pref_batch["obs_1"],
-                    obs_2=pref_batch["obs_2"],
-                    action_1=pref_batch["action_1"],
-                    action_2=pref_batch["action_2"],
-                    label=pref_batch["label"],
-                    extra_obs=rl_batch["obs"],
-                    extra_action=rl_batch["action"]
-                )
-                return metrics
-            else:
-                agent_metrics = self.update_agent(
-                    obs=rl_batch["obs"],
-                    action=rl_batch["action"],
-                    next_obs=rl_batch["next_obs"],
-                    terminal=rl_batch["terminal"]
-                )
-                # metrics.update(agent_metrics)
-                return agent_metrics
+            return self.update_reward(
+                obs_1=pref_batch["obs_1"],
+                obs_2=pref_batch["obs_2"],
+                action_1=pref_batch["action_1"],
+                action_2=pref_batch["action_2"],
+                label=pref_batch["label"],
+                extra_obs=rl_batch["obs"],
+                extra_action=rl_batch["action"]
+            )
 
+    def train_step(self, batches, step: int, total_steps: int):
+        rl_batch = batches[0]
+        return self.update_agent(
+            obs=rl_batch["obs"],
+            action=rl_batch["action"],
+            next_obs=rl_batch["next_obs"],
+            reward=rl_batch["reward"],
+            terminal=rl_batch["terminal"]
+        )
 
-    def update_agent(self, obs, action, next_obs, terminal):
+    def update_agent(self, obs, action, next_obs, reward, terminal):
         with torch.no_grad():
             self.target_network.eval()
             q_old = self.target_network.critic(obs, action)
@@ -241,10 +250,10 @@ class HindsightPreferenceLearning(Algorithm):
 
         # update critic
         with torch.no_grad():
-            repeated_obs_action = torch.concat([obs, action], dim=-1)
-            repeated_obs_action = repeated_obs_action.repeat([self.prior_sample, 1, 1])
-            z_prior, *_ = self.network.prior.sample(repeated_obs_action, deterministic=False)
-            reward = self.network.reward(torch.concat([repeated_obs_action, z_prior], dim=-1)).mean(dim=0)
+            if self.rm_label:
+                reward = reward
+            else:
+                reward = self.select_reward({"obs": obs, "action": action}, deterministic=False)
             target_q = self.network.value(next_obs)
             target_q = reward + self.discount * (1-terminal.float())*target_q
         q_pred = self.network.critic(obs, action)
@@ -363,3 +372,14 @@ class HindsightPreferenceLearning(Algorithm):
             "loss/prior_kl_loss": prior_kl_loss.item(),
             "loss/post_kl_loss": post_kl_loss.item(),
         }
+
+    def load_pretrain(self, path):
+        for attr in ["future_encoder", "future_proj", "decoder", "prior", "reward"]:
+            state_dict = torch.load(os.path.join(path, attr+".pt"), map_location=self.device)
+            self.network.__getattr__(attr).load_state_dict(state_dict)
+
+    def save_pretrain(self, path):
+        os.makedirs(path, exist_ok=True)
+        for attr in ["future_encoder", "future_proj", "decoder", "prior", "reward"]:
+            state_dict = self.network.__getattr__(attr).state_dict()
+            torch.save(state_dict, os.path.join(path, attr+".pt"))
