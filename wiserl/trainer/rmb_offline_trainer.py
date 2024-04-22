@@ -145,6 +145,6 @@ class RewardModelBasedOfflineTrainer(OfflineTrainer):
             self.rl_eval_fn = vars(wiserl.eval)[self.rl_eval_kwargs.pop("function")]
         eval_metrics = self.rl_eval_fn(
             self.eval_env, self.algorithm,
-            **self.eval_kwargs
+            **self.rl_eval_kwargs
         )
         return eval_metrics
