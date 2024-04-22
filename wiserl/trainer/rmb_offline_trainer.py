@@ -121,7 +121,7 @@ class RewardModelBasedOfflineTrainer(OfflineTrainer):
 
             if self.eval_freq and step % self.eval_freq == 0:
                 self.algorithm.eval()
-                eval_metrics = self.evaluate()
+                eval_metrics = self.rl_evaluate()
                 self.logger.log_scalars("eval", eval_metrics, step=step)
                 self.algorithm.train()
 
@@ -136,3 +136,15 @@ class RewardModelBasedOfflineTrainer(OfflineTrainer):
             self._env.close()
         if self._eval_env is not None:
             self._eval_env.close()
+
+    def rl_evaluate(self):
+        assert not self.algorithm.training
+        if self.rl_eval_kwargs is None:
+            return {}
+        if not hasattr(self, "rl_eval_fn"):
+            self.rl_eval_fn = vars(wiserl.eval)[self.rl_eval_kwargs.pop("function")]
+        eval_metrics = self.rl_eval_fn(
+            self.eval_env, self.algorithm,
+            **self.eval_kwargs
+        )
+        return eval_metrics

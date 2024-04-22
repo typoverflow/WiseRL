@@ -14,6 +14,7 @@ algorithm:
   kl_loss_coef: 5.0 # [0.5, 5.0]
   kl_balance_coef: 0.8
   reg_coef: 0.0001
+  rm_label: true
 
 checkpoint: null
 seed: 0
