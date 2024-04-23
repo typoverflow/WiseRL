@@ -1,12 +1,13 @@
 import collections
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 import gym
 import imageio
 import numpy as np
 import torch
 
+import wiserl.dataset
 from wiserl.algorithm.base import Algorithm
 
 MAX_METRICS = {"success", "is_success", "completions"}
@@ -95,3 +96,48 @@ def eval_offline(
         if hasattr(env, "get_normalized_score"):
             metric_tracker.add("score", env.get_normalized_score(ep_reward))
     return metric_tracker.export()
+
+
+@torch.no_grad()
+def rm_eval_pb_offline(
+    env: gym.Env,
+    algorithm: Algorithm,
+    eval_dataset_kwargs: Optional[Sequence[str]],
+    eval_dataloader_kwargs:  Optional[Sequence[str]],
+):
+    rm_eval_loss = []
+    rm_eval_acc = []
+    eval_dataset_class = eval_dataset_kwargs.pop("class")
+    eval_dataset = vars(wiserl.dataset)[eval_dataset_class](
+            env.observation_space,
+            env.action_space,
+            **eval_dataset_kwargs
+        )
+    eval_dataloader = torch.utils.data.DataLoader(eval_dataset, **eval_dataloader_kwargs)
+    for batch in eval_dataloader:
+        # todo: we need an abstraction of the reward method
+        obs_action_1 = torch.concat([batch["obs_1"], batch["action_1"]], dim=-1)
+        obs_action_2 = torch.concat([batch["obs_2"], batch["action_2"]], dim=-1)
+        obs_action_total = torch.concat([obs_action_1, obs_action_2], dim=0)
+        z_posterior, _, info = algorithm.network.future_proj.sample(
+            algorithm.network.future_encoder(
+                inputs=obs_action_total,
+                timesteps=None, # consistent with vae training
+                attention_mask=algorithm.future_attention_mask,
+                do_embedding=True
+            )
+        )
+        # cross entropy loss
+        # todo: fix device error here
+        reward_total = algorithm.network.reward(torch.concat([obs_action_total, z_posterior], dim=-1))
+        r1, r2 = torch.chunk(reward_total, 2, dim=0)
+        logit = r2.sum(dim=1) - r1.sum(dim=1)
+        label = label.float()
+        reward_loss = algorithm.reward_criterion(logit, label).mean()
+        reward_acc = ((logit > 0) == torch.round(label)).float().mean()
+        rm_eval_loss.append(reward_loss)
+        rm_eval_acc.append(reward_acc)
+    return {
+        "rm_eval_loss": np.array(rm_eval_loss).mean(),
+        "rm_eval_acc": np.array(rm_eval_acc).mean(),
+    }
