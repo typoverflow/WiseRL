@@ -114,7 +114,10 @@ def rm_eval_pb_offline(
             **eval_dataset_kwargs
         )
     eval_dataloader = torch.utils.data.DataLoader(eval_dataset, **eval_dataloader_kwargs)
-    for batch in eval_dataloader:
+    eval_dataloader_iter = iter(eval_dataloader)
+    for step in range(len(eval_dataloader)):
+        batch = next(eval_dataloader_iter)
+        batch = algorithm.format_batch(batch)
         # todo: we need an abstraction of the reward method
         obs_action_1 = torch.concat([batch["obs_1"], batch["action_1"]], dim=-1)
         obs_action_2 = torch.concat([batch["obs_2"], batch["action_2"]], dim=-1)
@@ -128,16 +131,15 @@ def rm_eval_pb_offline(
             )
         )
         # cross entropy loss
-        # todo: fix device error here
         reward_total = algorithm.network.reward(torch.concat([obs_action_total, z_posterior], dim=-1))
         r1, r2 = torch.chunk(reward_total, 2, dim=0)
         logit = r2.sum(dim=1) - r1.sum(dim=1)
-        label = label.float()
+        label = batch["label"].float()
         reward_loss = algorithm.reward_criterion(logit, label).mean()
         reward_acc = ((logit > 0) == torch.round(label)).float().mean()
         rm_eval_loss.append(reward_loss)
         rm_eval_acc.append(reward_acc)
     return {
-        "rm_eval_loss": np.array(rm_eval_loss).mean(),
-        "rm_eval_acc": np.array(rm_eval_acc).mean(),
+        "rm_eval_loss": torch.tensor(rm_eval_loss).mean(),
+        "rm_eval_acc": torch.tensor(rm_eval_acc).mean(),
     }

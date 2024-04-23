@@ -111,13 +111,13 @@ trainer:
   eval_freq: 10000   # don't do eval
 
 rm_eval:
-  # todo: add eval parameter for the dataset
   function: rm_eval_pb_offline
   eval_dataset_kwargs:
     class: IPLComparisonOfflineDataset
     env: hopper-medium-expert-v2
     batch_size: 8
     mode: human
+    eval: true
   eval_dataloader_kwargs:
     num_workers: 2
     batch_size: null

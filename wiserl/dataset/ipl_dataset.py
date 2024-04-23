@@ -34,6 +34,7 @@ class IPLComparisonOfflineDataset(torch.utils.data.IterableDataset):
         batch_size: Optional[int] = None,
         capacity: Optional[int] = None,
         mode: str = "human",
+        eval: bool = False,
     ):
         super().__init__()
         assert env in DATASET_PATH.keys(), f"Env {env} not registered for PT dataset"
@@ -44,7 +45,8 @@ class IPLComparisonOfflineDataset(torch.utils.data.IterableDataset):
         self.batch_size = 1 if batch_size is None else batch_size
         self.segment_length = segment_length
 
-        path = f"{DATASET_PATH[self.env_name]}_{self.mode}_train.npz"
+        train_or_eval = "eval" if eval else "train"
+        path = f"{DATASET_PATH[self.env_name]}_{self.mode}_{train_or_eval}.npz"
         with open(path, "rb") as f:
             data = np.load(f)
             data = utils.nest_dict(data)
