@@ -45,32 +45,32 @@ network:
   decoder:
     embed_dim: 64
     hidden_dims: [256, 256] # shallower?
-    ortho_init: false
+    ortho_init: true
   prior:
     hidden_dims: [256, 256]
-    ortho_init: false
+    ortho_init: true
   reward:
     class: Critic
     hidden_dims: [256, 256, 256] # tune
-    ortho_init: false
+    ortho_init: true
   actor:
     class: SquashedGaussianActor
     hidden_dims: [256, 256, 256]
     reparameterize: false
-    conditioned_logstd: false
-    logstd_min: -5
+    conditioned_logstd: true
+    logstd_min: -10
     logstd_max: 2
-    ortho_init: false
+    ortho_init: true
   critic:
     class: Critic
     ensemble_size: 2
     hidden_dims: [256, 256, 256]
-    ortho_init: false
+    ortho_init: true
   value:
     class: Critic
     ensemble_size: 1
     hidden_dims: [256, 256, 256]
-    ortho_init: false
+    ortho_init: true
 
 
 rm_dataset:
