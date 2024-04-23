@@ -26,6 +26,7 @@ class IPL_IQL(OracleIQL):
         discount: float = 0.99,
         tau: float = 0.005,
         target_freq: int = 1,
+        target_clipping: bool=True,
         **kwargs
     ):
         super().__init__(
@@ -42,6 +43,7 @@ class IPL_IQL(OracleIQL):
         self.reg_replay_weight = reg_replay_weight
         self.actor_replay_weight = actor_replay_weight
         self.value_replay_weight = value_replay_weight
+        self.target_clipping = target_clipping
         self.reward_criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
 
     def setup_network(self, network_kwargs):
@@ -124,6 +126,9 @@ class IPL_IQL(OracleIQL):
         q_pred = self.network.critic(encoded_obs.detach(), action)
         with torch.no_grad():
             next_v = self.network.value(encoded_next_obs)
+            if self.target_clipping:
+                qlim = 1.0 / (self.reward_reg * (1-self.discount))
+                next_v = next_v.clip(min=-qlim, max=qlim)
         reward = q_pred - (1-terminal) * self.discount * next_v.unsqueeze(0)
         r1, r2, rr = torch.split(reward, split, dim=1)
         E = r1.shape[0]
