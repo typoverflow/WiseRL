@@ -96,8 +96,10 @@ class RewardModelBasedOfflineTrainer(OfflineTrainer):
                     self.logger.log_scalars("pretrain", pretrain_metrics, step=step)
 
                 if self.eval_freq and step % self.eval_freq == 0:
-                    # todo
-                    pass
+                    self.algorithm.eval()
+                    eval_metrics = self.rm_evaluate()
+                    self.logger.log_scalars("eval", eval_metrics, step=step)
+                    self.algorithm.train()
 
             if self.save_rm_path is not None:
                 self.logger.info(f"Saving pretrained model to {self.save_rm_path} ...")
@@ -136,6 +138,17 @@ class RewardModelBasedOfflineTrainer(OfflineTrainer):
             self._env.close()
         if self._eval_env is not None:
             self._eval_env.close()
+            
+    def rm_evaluate(self):
+        if self.rm_eval_kwargs is None:
+            return {}
+        if not hasattr(self, "rm_eval_fn"):
+            self.rm_eval_fn = vars(wiserl.eval)[self.rm_eval_kwargs.pop("function")]
+        eval_metrics = self.rm_eval_fn(
+            self.eval_env, self.algorithm,
+            **self.rm_eval_kwargs
+        )
+        return eval_metrics
 
     def rl_evaluate(self):
         assert not self.algorithm.training
