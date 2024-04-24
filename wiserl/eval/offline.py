@@ -7,7 +7,6 @@ import imageio
 import numpy as np
 import torch
 
-import wiserl.dataset
 from wiserl.algorithm.base import Algorithm
 
 MAX_METRICS = {"success", "is_success", "completions"}
@@ -96,46 +95,3 @@ def eval_offline(
         if hasattr(env, "get_normalized_score"):
             metric_tracker.add("score", env.get_normalized_score(ep_reward))
     return metric_tracker.export()
-
-
-@torch.no_grad()
-def rm_eval_pb_offline(
-    env: gym.Env,
-    algorithm: Algorithm,
-    eval_dataset_kwargs: Optional[Sequence[str]],
-):
-    rm_eval_loss = []
-    rm_eval_acc = []
-    eval_dataset_class = eval_dataset_kwargs.pop("class")
-    eval_dataset = vars(wiserl.dataset)[eval_dataset_class](
-            env.observation_space,
-            env.action_space,
-            **eval_dataset_kwargs
-        )
-    for batch in eval_dataset.create_sequential_iter():
-        batch = algorithm.format_batch(batch)
-        # todo: we need an abstraction of the reward method
-        obs_action_1 = torch.concat([batch["obs_1"], batch["action_1"]], dim=-1)
-        obs_action_2 = torch.concat([batch["obs_2"], batch["action_2"]], dim=-1)
-        obs_action_total = torch.concat([obs_action_1, obs_action_2], dim=0)
-        z_posterior, _, info = algorithm.network.future_proj.sample(
-            algorithm.network.future_encoder(
-                inputs=obs_action_total,
-                timesteps=None, # consistent with vae training
-                attention_mask=algorithm.future_attention_mask,
-                do_embedding=True
-            )
-        )
-        # cross entropy loss
-        reward_total = algorithm.network.reward(torch.concat([obs_action_total, z_posterior], dim=-1))
-        r1, r2 = torch.chunk(reward_total, 2, dim=0)
-        logit = r2.sum(dim=1) - r1.sum(dim=1)
-        label = batch["label"].float()
-        reward_loss = algorithm.reward_criterion(logit, label)
-        reward_acc = ((logit > 0) == torch.round(label)).float()
-        rm_eval_loss.extend(reward_loss)
-        rm_eval_acc.extend(reward_acc)
-    return {
-        "rm_eval_loss": torch.tensor(rm_eval_loss).mean().item(),
-        "rm_eval_acc": torch.tensor(rm_eval_acc).mean().item(),
-    }

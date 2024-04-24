@@ -72,10 +72,10 @@ class IPLComparisonOfflineDataset(torch.utils.data.IterableDataset):
         else:
             start_idx, end_idx = 0, self.data_segment_length
         batch = {
-            "obs_1": self.data["obs_1"][idx],
-            "obs_2": self.data["obs_2"][idx],
+            "obs_1": self.data["obs_1"][idx, start_idx:end_idx],
+            "obs_2": self.data["obs_2"][idx, start_idx:end_idx],
             "action_1": self.data["action_1"][idx, start_idx:end_idx],
-            "action_2": self.data["action_2"][idx],
+            "action_2": self.data["action_2"][idx, start_idx:end_idx],
             "label": self.data["label"][idx][:, None],
             "terminal_1": np.zeros([len(idx), end_idx-start_idx, 1], dtype=np.float32) \
                 if is_batch else np.zeros([end_idx-start_idx, 1], dtype=np.float32),
@@ -90,11 +90,9 @@ class IPLComparisonOfflineDataset(torch.utils.data.IterableDataset):
             yield self.sample_idx(idxs)
 
     def create_sequential_iter(self):
-        # iterate over all for eval
-        assert self.segment_length is None, "segment_length must be None"
         start, end = 0, min(self.batch_size, self.data_size)
         while start < self.data_size:
-            idxs = list(range(start, end))
+            idxs = list(range(start, min(end, self.data_size)))
             yield self.sample_idx(idxs)
-            start = min(start + self.batch_size, self.data_size)
-            end = min(end + self.batch_size, self.data_size)
+            start += self.batch_size
+            end += self.batch_size
