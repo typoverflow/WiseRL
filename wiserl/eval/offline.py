@@ -103,7 +103,6 @@ def rm_eval_pb_offline(
     env: gym.Env,
     algorithm: Algorithm,
     eval_dataset_kwargs: Optional[Sequence[str]],
-    eval_dataloader_kwargs:  Optional[Sequence[str]],
 ):
     rm_eval_loss = []
     rm_eval_acc = []
@@ -113,10 +112,7 @@ def rm_eval_pb_offline(
             env.action_space,
             **eval_dataset_kwargs
         )
-    eval_dataloader = torch.utils.data.DataLoader(eval_dataset, **eval_dataloader_kwargs)
-    eval_dataloader_iter = iter(eval_dataloader)
-    for step in range(len(eval_dataloader)):
-        batch = next(eval_dataloader_iter)
+    for batch in eval_dataset:
         batch = algorithm.format_batch(batch)
         # todo: we need an abstraction of the reward method
         obs_action_1 = torch.concat([batch["obs_1"], batch["action_1"]], dim=-1)
@@ -140,6 +136,6 @@ def rm_eval_pb_offline(
         rm_eval_loss.append(reward_loss)
         rm_eval_acc.append(reward_acc)
     return {
-        "rm_eval_loss": torch.tensor(rm_eval_loss).mean(),
-        "rm_eval_acc": torch.tensor(rm_eval_acc).mean(),
+        "rm_eval_loss": torch.tensor(rm_eval_loss).mean().item(),
+        "rm_eval_acc": torch.tensor(rm_eval_acc).mean().item(),
     }

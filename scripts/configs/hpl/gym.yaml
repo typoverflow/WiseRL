@@ -115,12 +115,9 @@ rm_eval:
   eval_dataset_kwargs:
     class: IPLComparisonOfflineDataset
     env: hopper-medium-expert-v2
-    batch_size: 8
+    batch_size: 10
     mode: human
     eval: true
-  eval_dataloader_kwargs:
-    num_workers: 2
-    batch_size: null
 rl_eval:
   function: eval_offline
   num_ep: 10

@@ -44,7 +44,7 @@ class IPLComparisonOfflineDataset(torch.utils.data.IterableDataset):
         self.mode = mode
         self.batch_size = 1 if batch_size is None else batch_size
         self.segment_length = segment_length
-
+        self.eval = eval
         train_or_eval = "eval" if eval else "train"
         path = f"{DATASET_PATH[self.env_name]}_{self.mode}_{train_or_eval}.npz"
         with open(path, "rb") as f:
@@ -72,10 +72,10 @@ class IPLComparisonOfflineDataset(torch.utils.data.IterableDataset):
         else:
             start_idx, end_idx = 0, self.data_segment_length
         batch = {
-            "obs_1": self.data["obs_1"][idx, start_idx:end_idx],
-            "obs_2": self.data["obs_2"][idx, start_idx:end_idx],
+            "obs_1": self.data["obs_1"][idx],
+            "obs_2": self.data["obs_2"][idx],
             "action_1": self.data["action_1"][idx, start_idx:end_idx],
-            "action_2": self.data["action_2"][idx, start_idx: end_idx],
+            "action_2": self.data["action_2"][idx],
             "label": self.data["label"][idx][:, None],
             "terminal_1": np.zeros([len(idx), end_idx-start_idx, 1], dtype=np.float32) \
                 if is_batch else np.zeros([end_idx-start_idx, 1], dtype=np.float32),
@@ -85,6 +85,16 @@ class IPLComparisonOfflineDataset(torch.utils.data.IterableDataset):
         return batch
 
     def __iter__(self):
-        while True:
-            idxs = np.random.randint(0, len(self), size=self.batch_size)
-            yield self.sample_idx(idxs)
+        if not self.eval:
+            while True:
+                idxs = np.random.randint(0, len(self), size=self.batch_size)
+                yield self.sample_idx(idxs)
+        else:
+            # iterate over all for eval
+            assert self.segment_length is None, "segment_length must be None"
+            start, end = 0, self.batch_size
+            while start < self.data_size:
+                idxs = list(range(start, end))
+                yield self.sample_idx(idxs)
+                start += self.batch_size
+                end += self.batch_size
