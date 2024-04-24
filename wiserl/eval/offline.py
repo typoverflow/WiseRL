@@ -131,10 +131,10 @@ def rm_eval_pb_offline(
         r1, r2 = torch.chunk(reward_total, 2, dim=0)
         logit = r2.sum(dim=1) - r1.sum(dim=1)
         label = batch["label"].float()
-        reward_loss = algorithm.reward_criterion(logit, label).mean()
-        reward_acc = ((logit > 0) == torch.round(label)).float().mean()
-        rm_eval_loss.append(reward_loss)
-        rm_eval_acc.append(reward_acc)
+        reward_loss = algorithm.reward_criterion(logit, label)
+        reward_acc = ((logit > 0) == torch.round(label)).float()
+        rm_eval_loss.extend(reward_loss)
+        rm_eval_acc.extend(reward_acc)
     return {
         "rm_eval_loss": torch.tensor(rm_eval_loss).mean().item(),
         "rm_eval_acc": torch.tensor(rm_eval_acc).mean().item(),
