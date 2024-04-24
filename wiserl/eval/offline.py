@@ -112,7 +112,7 @@ def rm_eval_pb_offline(
             env.action_space,
             **eval_dataset_kwargs
         )
-    for batch in eval_dataset:
+    for batch in eval_dataset.create_sequential_iter():
         batch = algorithm.format_batch(batch)
         # todo: we need an abstraction of the reward method
         obs_action_1 = torch.concat([batch["obs_1"], batch["action_1"]], dim=-1)
