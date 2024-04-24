@@ -85,16 +85,16 @@ class IPLComparisonOfflineDataset(torch.utils.data.IterableDataset):
         return batch
 
     def __iter__(self):
-        if not self.eval:
-            while True:
-                idxs = np.random.randint(0, len(self), size=self.batch_size)
-                yield self.sample_idx(idxs)
-        else:
-            # iterate over all for eval
-            assert self.segment_length is None, "segment_length must be None"
-            start, end = 0, self.batch_size
-            while start < self.data_size:
-                idxs = list(range(start, end))
-                yield self.sample_idx(idxs)
-                start += self.batch_size
-                end += self.batch_size
+        while True:
+            idxs = np.random.randint(0, len(self), size=self.batch_size)
+            yield self.sample_idx(idxs)
+
+    def create_sequential_iter(self):
+        # iterate over all for eval
+        assert self.segment_length is None, "segment_length must be None"
+        start, end = 0, self.batch_size
+        while start < self.data_size:
+            idxs = list(range(start, end))
+            yield self.sample_idx(idxs)
+            start += self.batch_size
+            end += self.batch_size
