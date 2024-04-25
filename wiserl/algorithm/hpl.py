@@ -186,7 +186,7 @@ class HindsightPreferenceLearning(Algorithm):
         obs, action = batch["obs"], batch["action"]
         repeated_obs_action = torch.concat([obs, action], dim=-1)
         repeated_obs_action = repeated_obs_action.repeat([self.prior_sample, ] + [1,]*len(repeated_obs_action.shape))
-        z_prior, *_ = self.network.prior.sample(repeated_obs_action, deterministic=deterministic)
+        z_prior, *_ = self.network.prior.sample(repeated_obs_action, deterministic=False)
         reward = self.network.reward(torch.concat([repeated_obs_action, z_prior], dim=-1)).mean(dim=0)
         return reward.detach()
 
