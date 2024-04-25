@@ -257,6 +257,7 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
             norm = 1000 / max(max_return, 1.0)
             self.data["reward"] *= norm
             self.data["return"] *= norm
+            print(f"[D4RLOfflineDataset]: return range: [{return_[:,0].min()}, {return_[:, 0].max()}], multiplying norm factor {norm}.")
         elif self.mode == "transition":
             ep_reward_ = []
             episode_reward = 0
@@ -269,3 +270,4 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
             max_return = max(abs(min(ep_reward_)).item(), abs(max(ep_reward_)).item())
             norm = 1000 / max(max_return, 1.0)
             self.data["reward"] *= norm
+            print(f"[D4RLOfflineDataset]: return range: [{min(ep_reward_)}, {max(ep_reward_)}], multiplying norm factor {norm}.")
