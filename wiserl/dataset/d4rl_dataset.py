@@ -39,6 +39,7 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
     ):
         super().__init__()
         assert mode in {"transition", "trajectory"}, "Supported mode for D4RLOfflineDataset: {transition, trajectory}."
+        assert padding_mode in {"left", "right", "none", "Supported padding mode for D4RLOfflineDataset: {left, right, none}."}
         assert reward_scale is None == reward_shift is None, "reward_scale and reward_shift should be set simultaneously."
         assert not reward_normalize or reward_shift is None, "reward scale & shift and reward normalize can not be set simultaneously."
 
@@ -253,8 +254,8 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
                 return_[t] += return_[t+1]
             self.data["return"] = return_
             # normalization
-            max_return = max(abs(return_[:, 0].max()), abs(return_[:, 0].min()))
-            norm = 1000 / max(max_return, 1.0)
+            max_return = max(abs(return_[:, 0].max()), abs(return_[:, 0].min()), return_[:, 0].max()-return_[:, 0].min(), 1.0)
+            norm = 1000 / max_return
             self.data["reward"] *= norm
             self.data["return"] *= norm
             print(f"[D4RLOfflineDataset]: return range: [{return_[:,0].min()}, {return_[:, 0].max()}], multiplying norm factor {norm}.")
@@ -267,7 +268,7 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
                 if self.data["end"][i]:
                     ep_reward_.append(episode_reward)
                     episode_reward = 0
-            max_return = max(abs(min(ep_reward_)).item(), abs(max(ep_reward_)).item())
-            norm = 1000 / max(max_return, 1.0)
+            max_return = max(abs(min(ep_reward_)).item(), abs(max(ep_reward_)).item(), (max(ep_reward_)-min(ep_reward_)).item(), 1.0)
+            norm = 1000 / max_return
             self.data["reward"] *= norm
             print(f"[D4RLOfflineDataset]: return range: [{min(ep_reward_)}, {max(ep_reward_)}], multiplying norm factor {norm}.")

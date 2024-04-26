@@ -3,8 +3,8 @@
 from typing import Dict, Optional
 
 import gym
-from gym.envs import register
 import UtilsRL.env.wrapper
+from gym.envs import register
 
 from .base import EmptyEnv
 
@@ -20,6 +20,14 @@ try:
         register(id=ID, entry_point="wiserl.env.metaworld:get_mw_image_env", kwargs={"env_name": env_name})
 except ImportError:
     print("Warning: Could not import MetaWorld Environments.")
+
+try:
+    from wiserl.env.robomimic_env import DATASET_PATH, RobomimicEnv
+    for env_name in DATASET_PATH.keys():
+        ID=env_name
+        register(id=ID, entry_point="wiserl.env.robomimic:RobomimicEnv", kwargs={"env_name": env_name})
+except ImportError:
+    print("Warning: Could not import RobomimicEnv")
 
 
 def get_env(
