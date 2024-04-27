@@ -86,7 +86,7 @@ rm_dataset:
     mode: human
   - class: D4RLOfflineDataset
     env: hopper-medium-expert-v2
-    batch_size: 6400
+    batch_size: 512
     mode: transition
 rm_dataloader:
   num_workers: 2
@@ -95,7 +95,7 @@ rm_dataloader:
 rl_dataset:
   - class: D4RLOfflineDataset
     env: hopper-medium-expert-v2
-    batch_size: 6400
+    batch_size: 512
     mode: transition
 rl_dataloader:
   num_workers: 2
