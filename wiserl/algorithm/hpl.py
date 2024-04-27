@@ -131,10 +131,15 @@ class HindsightPreferenceLearning(Algorithm):
             conditioned_logstd=True,
             hidden_dims=prior_kwargs["hidden_dims"]
         )
+        reward_act = network_kwargs["reward"].pop("reward_act")
         reward = vars(wiserl.module)[network_kwargs["reward"].pop("class")](
             input_dim=self.observation_space.shape[0]+self.action_space.shape[0]+self.z_dim,
             output_dim=1,
             **network_kwargs["reward"]
+        )
+        reward = nn.Sequential(
+            reward,
+            nn.Sigmoid() if reward_act == "sigmoid" else nn.Identity()
         )
         actor = vars(wiserl.module)[network_kwargs["actor"].pop("class")](
             input_dim=self.observation_space.shape[0],
