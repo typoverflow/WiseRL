@@ -9,4 +9,8 @@ from wiserl.dataset.mismatched_mujoco_dataset import (
 )
 
 from .replay_buffer import ReplayBuffer
-from .robomimic_dataset import RobomimicDataset
+
+try:
+    from .robomimic_dataset import RobomimicDataset
+except ImportError:
+    print("Warning: Could not import RobomimicDataset")
