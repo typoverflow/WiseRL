@@ -13,11 +13,11 @@ try:
 
     for env_name in ALL_V2_ENVIRONMENTS.keys():
         ID = f"mw_{env_name}"
-        register(id=ID, entry_point="wiserl.env.metaworld:MetaWorldSawyerEnv", kwargs={"env_name": env_name})
+        register(id=ID, entry_point="wiserl.env.metaworld_env:MetaWorldSawyerEnv", kwargs={"env_name": env_name})
         id_parts = ID.split("-")
         id_parts[-1] = "image-" + id_parts[-1]
         ID = "-".join(id_parts)
-        register(id=ID, entry_point="wiserl.env.metaworld:get_mw_image_env", kwargs={"env_name": env_name})
+        register(id=ID, entry_point="wiserl.env.metaworld_env:get_mw_image_env", kwargs={"env_name": env_name})
 except ImportError:
     print("Warning: Could not import MetaWorld Environments.")
 
@@ -25,7 +25,7 @@ try:
     from wiserl.env.robomimic_env import DATASET_PATH, RobomimicEnv
     for env_name in DATASET_PATH.keys():
         ID=env_name
-        register(id=ID, entry_point="wiserl.env.robomimic:RobomimicEnv", kwargs={"env_name": env_name})
+        register(id=ID, entry_point="wiserl.env.robomimic_env:RobomimicEnv", kwargs={"env_name": env_name})
 except ImportError:
     print("Warning: Could not import RobomimicEnv")
 

@@ -16,7 +16,6 @@ DATASET_PATH = {
 }
 
 
-# CHECK:  the done and terminals
 class RobomimicEnv(gym.Env):
     def __init__(self, env_name):
         super().__init__()
