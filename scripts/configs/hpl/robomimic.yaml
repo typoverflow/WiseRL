@@ -80,7 +80,6 @@ rm_dataset:
     env: Can-mh
     batch_size: 64 # [64, 128]
     mode: trajectory
-    segment_length: 100
     padding_mode: none
   - class: IPLComparisonOfflineDataset
     env: Can-mh
