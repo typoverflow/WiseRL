@@ -100,7 +100,7 @@ class RobomimicDataset(torch.utils.data.IterableDataset):
                 if len(sample) == 1: yield sample[0]
                 else:
                     yield {
-                        k: np.stack([s[k] for s in sample], axis=0) for k in s
+                        k: np.stack([s[k] for s in sample], axis=0) for k in sample[0].keys()
                     }
 
     def load_dataset(self):
