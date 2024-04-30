@@ -123,6 +123,7 @@ rm_eval:
 rl_eval:
   function: eval_offline # todo
   num_ep: 25
+  num_proc: 25
   deterministic: true
 
 schedulers:

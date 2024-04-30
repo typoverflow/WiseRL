@@ -170,7 +170,7 @@ class OfflineTrainer(object):
         if self.eval_fn is None:
             self.eval_fn = vars(wiserl.eval)[self.eval_kwargs.pop("function")]
         eval_metrics = self.eval_fn(
-            self.eval_env, self.algorithm,
+            self.eval_env, self.eval_env_fn, self.algorithm,
             **self.eval_kwargs
         )
         return eval_metrics

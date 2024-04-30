@@ -1,6 +1,6 @@
 import collections
 import os
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 import gym
 import numpy as np
@@ -13,6 +13,7 @@ from wiserl.algorithm.base import Algorithm
 @torch.no_grad()
 def eval_reward_model(
     env: gym.Env,
+    env_fn: Callable,
     algorithm: Algorithm,
     eval_dataset_kwargs: Optional[Sequence[str]],
 ):

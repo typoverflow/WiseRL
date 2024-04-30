@@ -145,7 +145,7 @@ class RewardModelBasedOfflineTrainer(OfflineTrainer):
         if not hasattr(self, "rm_eval_fn"):
             self.rm_eval_fn = vars(wiserl.eval)[self.rm_eval_kwargs.pop("function")]
         eval_metrics = self.rm_eval_fn(
-            self.eval_env, self.algorithm,
+            self.eval_env, self.eval_env_fn, self.algorithm,
             **self.rm_eval_kwargs
         )
         return eval_metrics
@@ -157,7 +157,7 @@ class RewardModelBasedOfflineTrainer(OfflineTrainer):
         if not hasattr(self, "rl_eval_fn"):
             self.rl_eval_fn = vars(wiserl.eval)[self.rl_eval_kwargs.pop("function")]
         eval_metrics = self.rl_eval_fn(
-            self.eval_env, self.algorithm,
+            self.eval_env, self.eval_env_fn, self.algorithm,
             **self.rl_eval_kwargs
         )
         return eval_metrics
