@@ -7,7 +7,7 @@ import imageio
 import numpy as np
 import torch
 
-from offlinerllib.env.venvs import SubprocVectorEnv
+from wiserl.env.venvs import SubprocVectorEnv
 from wiserl.algorithm.base import Algorithm
 
 MAX_METRICS = {"success", "is_success", "completions"}
