@@ -79,7 +79,7 @@ def eval_offline(
     num_proc: Optional[int] = None,
     seed: int = 0,
     terminate_on_success: bool = False,
-    deterministic: bool = True,
+    deterministic: bool = False,
 ):
     if num_proc is None:
         metric_tracker = EvalMetricTracker()
@@ -111,6 +111,9 @@ def eval_offline(
             # avoid reinitialization
             eval_offline.envs[env_fn] = SubprocVectorEnv([env_fn for _ in range(num_proc)])
             eval_offline.envs[env_fn].seed(seed)
+            # hack: seed does not take effect, so reset n times for random
+            for i in range(num_proc):
+                eval_offline.envs[env_fn].reset(id=list(range(i + 1)))
         assert num_ep % num_proc == 0, "num_ep must be divisible by num_proc"
         metric_tracker = EvalMetricTracker(num_episodes=num_proc)
         envs = eval_offline.envs[env_fn]
