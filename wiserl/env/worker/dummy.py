@@ -1,7 +1,7 @@
 from collections.abc import Callable
 from typing import Any
 
-import gymnasium as gym
+import gym
 import numpy as np
 
 from wiserl.env.worker import EnvWorker

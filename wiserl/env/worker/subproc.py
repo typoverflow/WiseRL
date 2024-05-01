@@ -7,7 +7,7 @@ from multiprocessing import Pipe, connection
 from multiprocessing.context import BaseContext
 from typing import Any, Literal
 
-import gymnasium as gym
+import gym
 import numpy as np
 
 from wiserl.env.utils import CloudpickleWrapper, gym_new_venv_step_type

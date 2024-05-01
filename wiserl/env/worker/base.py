@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Any
 
-import gymnasium as gym
+import gym
 import numpy as np
 
 from wiserl.env.utils import gym_new_venv_step_type
