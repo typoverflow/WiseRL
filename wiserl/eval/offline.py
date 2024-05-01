@@ -104,10 +104,16 @@ def eval_offline(
                 metric_tracker.add("score", env.get_normalized_score(ep_reward))
         return metric_tracker.export()
     else:
+        # Use static variables to avoid passing config from trainer class
+        if not hasattr(eval_offline, "envs"):
+            eval_offline.envs = {}  # it doesn't exist yet, so initialize it
+        if env_fn not in eval_offline.envs:
+            # avoid reinitialization
+            eval_offline.envs[env_fn] = SubprocVectorEnv([env_fn for _ in range(num_proc)])
+            eval_offline.envs[env_fn].seed(seed)
         assert num_ep % num_proc == 0, "num_ep must be divisible by num_proc"
         metric_tracker = EvalMetricTracker(num_episodes=num_proc)
-        envs = SubprocVectorEnv([env_fn for _ in range(num_proc)])
-        envs.seed(seed)
+        envs = eval_offline.envs[env_fn]
         for i in range(0, num_ep, num_proc):
             ep_lengths, ep_rewards = [0] * num_proc, [0] * num_proc
             obss, dones = envs.reset(), [False] * num_proc
@@ -133,5 +139,4 @@ def eval_offline(
             if hasattr(env, "get_normalized_score"):
                 for j in range(num_proc):
                     metric_tracker.add("score", env.get_normalized_score(ep_rewards[j]))
-        envs.close()
         return metric_tracker.export()
