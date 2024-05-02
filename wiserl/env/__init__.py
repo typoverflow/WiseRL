@@ -9,18 +9,26 @@ from gym.envs import register
 from .base import EmptyEnv
 from .cliffwalking_env import CliffWalkingEnv
 
+# try:
+#     from metaworld.envs.mujoco.env_dict import ALL_V2_ENVIRONMENTS
+
+#     for env_name in ALL_V2_ENVIRONMENTS.keys():
+#         ID = f"mw_{env_name}"
+#         register(id=ID, entry_point="wiserl.env.metaworld_env:MetaWorldSawyerEnv", kwargs={"env_name": env_name})
+#         id_parts = ID.split("-")
+#         id_parts[-1] = "image-" + id_parts[-1]
+#         ID = "-".join(id_parts)
+#         register(id=ID, entry_point="wiserl.env.metaworld_env:get_mw_image_env", kwargs={"env_name": env_name})
+# except ImportError:
+#     print("Warning: Could not import MetaWorld Environments.")
+
 try:
     from metaworld.envs.mujoco.env_dict import ALL_V2_ENVIRONMENTS
-
-    for env_name in ALL_V2_ENVIRONMENTS.keys():
-        ID = f"mw_{env_name}"
-        register(id=ID, entry_point="wiserl.env.metaworld_env:MetaWorldSawyerEnv", kwargs={"env_name": env_name})
-        id_parts = ID.split("-")
-        id_parts[-1] = "image-" + id_parts[-1]
-        ID = "-".join(id_parts)
-        register(id=ID, entry_point="wiserl.env.metaworld_env:get_mw_image_env", kwargs={"env_name": env_name})
+    for env_name, env_cls in ALL_V2_ENVIRONMENTS.items():
+        ID = f"{env_name}"
+        register(id=ID, entry_point="wiserl.env.metaworld_env:SawyerEnv", kwargs={"env_name": env_name})
 except ImportError:
-    print("Warning: Could not import MetaWorld Environments.")
+    print("Warning: Could not import MetaWorld Environments")
 
 try:
     from wiserl.env.robomimic_env import DATASET_PATH, RobomimicEnv

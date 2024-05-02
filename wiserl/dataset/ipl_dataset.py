@@ -9,18 +9,18 @@ import torch
 
 from wiserl.utils import utils
 
-prefix = "datasets/ipl/preference_transformer/"
+prefix = "datasets/ipl/"
 DATASET_PATH={
-    "hopper-medium-replay-v2": f"{prefix}/hopper-medium-replay-v2/num500",
-    "hopper-medium-expert-v2": f"{prefix}/hopper-medium-expert-v2/num100",
-    "walker2d-medium-replay-v2": f"{prefix}/walker2d-medium-replay-v2/num500",
-    "walker2d-medium-expert-v2": f"{prefix}/walker2d-medium-expert-v2/num100",
-    "Can-mh": f"{prefix}/Can/num500_q100",
-    "Can-ph": f"{prefix}/Can/num100_q50",
-    "Lift-mh": f"{prefix}/Lift/num500_q100",
-    "Lift-ph": f"{prefix}/Lift/num100_q50",
-    "Square-mh": f"{prefix}/Square/num500_q100",
-    "Square-mh": f"{prefix}/Square/num100_q50",
+    "hopper-medium-replay-v2": f"{prefix}/preference_transformer/hopper-medium-replay-v2/num500",
+    "hopper-medium-expert-v2": f"{prefix}/preference_transformer/hopper-medium-expert-v2/num100",
+    "walker2d-medium-replay-v2": f"{prefix}/preference_transformer/walker2d-medium-replay-v2/num500",
+    "walker2d-medium-expert-v2": f"{prefix}/preference_transformer/walker2d-medium-expert-v2/num100",
+    "Can-mh": f"{prefix}/preference_transformer/Can/num500_q100",
+    "Can-ph": f"{prefix}/preference_transformer/Can/num100_q50",
+    "Lift-mh": f"{prefix}/preference_transformer/Lift/num500_q100",
+    "Lift-ph": f"{prefix}/preference_transformer/Lift/num100_q50",
+    "Square-mh": f"{prefix}/preference_transformer/Square/num500_q100",
+    "Square-mh": f"{prefix}/preference_transformer/Square/num100_q50",
 }
 
 
