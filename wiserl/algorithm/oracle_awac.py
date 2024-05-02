@@ -74,8 +74,8 @@ class OracleAWAC(Algorithm):
     def actor_loss(self, encoded_obs, action, reduce=True):
         with torch.no_grad():
             baseline_actions = self.network.actor.sample(encoded_obs)[0]
-            v = self.network.critic(encoded_obs, baseline_actions).mean(0)[0]
-            q = self.network.critic(encoded_obs, action).mean(0)[0]
+            v = self.network.critic(encoded_obs, baseline_actions).mean(0)
+            q = self.network.critic(encoded_obs, action).mean(0)
             advantage = q - v
         exp_advantage = (advantage / self.beta).exp().clip(max=self.max_exp_clip)
         if isinstance(self.network.actor, DeterministicActor):
