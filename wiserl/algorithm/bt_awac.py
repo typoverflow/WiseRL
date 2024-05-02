@@ -1,4 +1,5 @@
 import itertools
+from operator import itemgetter
 from typing import Any, Dict, Optional, Type
 
 import torch
@@ -18,8 +19,8 @@ class BTAWAC(OracleAWAC):
         discount: float = 0.99,
         tau: float = 0.005,
         target_freq: int = 1,
-        reward_steps: Optional[int] = None,
         reward_reg: float = 0.0,
+        rm_label: bool = True,
         **kwargs
     ) -> None:
         super().__init__(
@@ -31,18 +32,26 @@ class BTAWAC(OracleAWAC):
             target_freq=target_freq,
             **kwargs
         )
-        self.reward_steps = reward_steps
         self.reward_reg = reward_reg
+        self.rm_label = rm_label
+        self.obs_dim = self.observation_space.shape[0]
+        self.action_dim = self.action_space.shape[0]
 
         self.reward_criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
 
     def setup_network(self, network_kwargs):
         super().setup_network(network_kwargs)
-        self.network["reward"] = vars(wiserl.module)[network_kwargs["reward"].pop("class")](
+        reward_act = {
+            "identity": nn.Identity(),
+            "sigmoid": nn.Sigmoid(),
+        }.get(network_kwargs["reward"].pop("reward_act"))
+        reward = vars(wiserl.module)[network_kwargs["reward"].pop("class")](
             input_dim=self.observation_space.shape[0]+self.action_space.shape[0],
             output_dim=1,
             **network_kwargs["reward"]
         )
+        self.network["reward"] = nn.Sequential(self.network["encoder"], reward, reward_act)
+
 
     def setup_optimizers(self, optim_kwargs):
         super().setup_optimizers(optim_kwargs)
@@ -54,48 +63,64 @@ class BTAWAC(OracleAWAC):
     def select_action(self, batch, deterministic: bool=True):
         return super().select_action(batch, deterministic)
 
+    def select_reward(self, batch, deterministic=False):
+        obs, action = batch["obs"], batch["action"]
+        reward = self.network.reward(torch.concat([obs, action], dim=-1))
+        return reward[0].detach()
+
+    def pretrain_step(self, batches, step: int, total_steps: int) -> Dict:
+        batch = batches[0]
+        F_B, F_S = batch["obs_1"].shape[0:2]
+        all_obs = torch.concat([
+            batch["obs_1"].reshape(-1, self.obs_dim),
+            batch["obs_2"].reshape(-1, self.obs_dim)
+        ])
+        all_action = torch.concat([
+            batch["action_1"].reshape(-1, self.action_dim),
+            batch["action_2"].reshape(-1, self.action_dim)
+        ])
+        self.network.reward.train()
+        all_reward = self.network.reward(torch.concat([all_obs, all_action], dim=-1))
+        r1, r2 = torch.chunk(all_reward, 2, dim=1)
+        E = r1.shape[0]
+        r1, r2 = r1.reshape(E, F_B, F_S, 1), r2.reshape(E, F_B, F_S, 1)
+        logits = r2.sum(dim=2) - r1.sum(dim=2)
+        labels = batch["label"].float().unsqueeze(0).expand_as(logits)
+        reward_loss = self.reward_criterion(logits, labels).mean()
+        reg_loss = (r1**2).mean() + (r2**2).mean()
+        with torch.no_grad():
+            reward_accuracy = ((logits > 0) == torch.round(labels)).float().mean()
+
+        self.optim["reward"].zero_grad()
+        (reward_loss + self.reward_reg * reg_loss).backward()
+        self.optim["reward"].step()
+
+        metrics = {
+            "loss/reward_loss": reward_loss.item(),
+            "loss/reward_reg_loss": reg_loss.item(),
+            "misc/reward_acc": reward_accuracy.item(),
+            "misc/reward_value": all_reward.mean().item()
+        }
+        return metrics
+
     def train_step(self, batches, step: int, total_steps: int) -> Dict:
-        batch, *_ = batches
-        obs = torch.cat([batch["obs_1"], batch["obs_2"]], dim=0)  # (B, S+1)
-        action = torch.cat([batch["action_1"], batch["action_2"]], dim=0)  # (B, S+1)
-        terminal = torch.cat([batch["terminal_1"], batch["terminal_2"]], dim=0)
-
-        encoded_obs = self.network.encoder(obs)
-
-        if step < self.reward_steps:
-            self.network.reward.train()
-            reward = self.network.reward(torch.cat([obs, action], dim=-1))
-            r1, r2 = torch.chunk(reward.sum(dim=2), 2, dim=1)
-            logits = r2 - r1
-            labels = batch["label"].float().unsqueeze(0).expand_as(logits)
-
-            reward_loss = self.reward_criterion(logits, labels).mean()
-            reg_loss = (r1**2).mean() + (r2**2).mean()
-            with torch.no_grad():
-                reward_accuracy = ((r2 > r1) == torch.round(labels)).float().mean()
-
-            self.optim["reward"].zero_grad()
-            (reward_loss + self.reward_reg * reg_loss).backward()
-            self.optim["reward"].step()
-
-            reward = reward.detach().mean(dim=0)
+        rl_batch = batches[0]
+        obs, action, next_obs, terminal = itemgetter("obs", "action", "next_obs", "terminal")(rl_batch)
+        terminal = terminal.float()
+        if self.rm_label:
+            reward = itemgetter("reward")(rl_batch)
         else:
-            reward = self.network.reward(torch.cat([obs, action], dim=-1)).detach().mean(dim=0)
+            with torch.no_grad():
+                reward = self.select_reward({"obs": obs, "action": action}, deterministic=True)
 
         # compute the loss for actor
-        actor_loss, advantage = self.actor_loss(encoded_obs, action)
+        actor_loss, advantage = self.actor_loss(obs, action)
         self.optim["actor"].zero_grad()
         actor_loss.backward()
         self.optim["actor"].step()
 
         # compute the loss for q, offset by 1
-        q_loss, q_pred = self.q_loss(
-            encoded_obs[:, :-1].detach(),
-            action[:, :-1],
-            encoded_obs[:, 1:].detach(),
-            reward[:, :-1],
-            terminal[:, :-1]
-        )
+        q_loss, q_pred = self.q_loss(obs, action, next_obs, reward, terminal)
         self.optim["critic"].zero_grad()
         q_loss.backward()
         self.optim["critic"].step()
@@ -112,11 +137,4 @@ class BTAWAC(OracleAWAC):
             "misc/q_pred": q_pred.mean().item(),
             "misc/advantage": advantage.mean().item()
         }
-        if step < self.reward_steps:
-            metrics.update({
-                "loss/reward_loss": reward_loss.item(),
-                "loss/reward_reg_loss": reg_loss.item(),
-                "misc/reward_acc": reward_accuracy.item(),
-                "misc/reward_value": reward.mean().item()
-            })
         return metrics
