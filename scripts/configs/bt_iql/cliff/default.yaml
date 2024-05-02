@@ -1,0 +1,79 @@
+algorithm:
+  class: BTIQL
+  beta: 0.3333
+  expectile: 0.7
+  max_exp_clip: 100.0
+  reward_steps: 20000
+  reward_reg: 0.0
+
+checkpoint: null
+seed: 0
+name: default
+debug: false
+device: null
+wandb:
+  activate: false
+  entity: null
+  project: null
+
+env: CliffWalkingEnv
+env_kwargs:
+env_wrapper:
+env_wrapper_kwargs:
+
+optim:
+  default:
+    class: Adam
+    lr: 0.0003
+
+network:
+  reward:
+    class: EnsembleMLP
+    ensemble_size: 1
+    hidden_dims: [256, 256]
+  actor:
+    class: SquashedGaussianActor
+    hidden_dims: [256, 256]
+    reparameterize: false
+    conditioned_logstd: false
+    logstd_min: -5
+    logstd_max: 2
+  critic:
+    class: Critic
+    ensemble_size: 2
+    hidden_dims: [256, 256]
+  value:
+    class: Critic
+    ensemble_size: 1
+    hidden_dims: [256, 256]
+
+dataset:
+  - class: CliffWalkingComparisonDataset
+    batch_size: 8
+    segment_length: null
+  - class: CliffWalkingOfflineDataset
+    batch_size: 256
+    mode: transition
+
+dataloader:
+  num_workers: 0  # use the main thread to sample data
+  batch_size: null  # do not merge the data along batch axis
+
+trainer:
+  env_freq: null
+  total_steps: 1000000
+  log_freq: 500
+  profile_freq: 500
+  eval_freq: 5000
+
+eval:
+  function: eval_offline
+  num_ep: 10
+  deterministic: true
+
+schedulers:
+  actor:
+    class: CosineAnnealingLR
+    T_max: 1000000
+
+processor: null

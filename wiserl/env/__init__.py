@@ -7,6 +7,7 @@ import UtilsRL.env.wrapper
 from gym.envs import register
 
 from .base import EmptyEnv
+from .cliffwalking_env import CliffWalkingEnv
 
 try:
     from metaworld.envs.mujoco.env_dict import ALL_V2_ENVIRONMENTS
