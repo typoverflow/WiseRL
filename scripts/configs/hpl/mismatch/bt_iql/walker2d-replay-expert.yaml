@@ -3,8 +3,8 @@ algorithm:
   beta: 0.3333
   expectile: 0.7
   max_exp_clip: 100.0
-  reward_steps: 20000
   reward_reg: 0.0
+  rm_label: true
 
 checkpoint: null
 seed: 0
@@ -31,6 +31,7 @@ network:
     class: EnsembleMLP
     ensemble_size: 1
     hidden_dims: [256, 256]
+    reward_act: sigmoid
   actor:
     class: SquashedGaussianActor
     hidden_dims: [256, 256]
@@ -47,29 +48,44 @@ network:
     ensemble_size: 1
     hidden_dims: [256, 256]
 
-dataset:
+rm_dataset:
   - class: IPLComparisonOfflineDataset
     env: walker2d-medium-replay-v2
     batch_size: 8
     segment_length: null
+    mode: human
+rm_dataloader:
+  num_workers: 2
+  batch_size: null
+
+rl_dataset:
   - class: D4RLOfflineDataset
     env: walker2d-medium-expert-v2
     batch_size: 256
     mode: transition
     reward_normalize: true
-
-dataloader:
-  num_workers: 0  # use the main thread to sample data
-  batch_size: null  # do not merge the data along batch axis
+rl_dataloader:
+  num_workers: 2
+  batch_size: null
 
 trainer:
   env_freq: null
-  total_steps: 1000000
+  rm_label: true
+  rm_steps: 50000
+  rl_steps: 1000000
   log_freq: 500
   profile_freq: 500
   eval_freq: 5000
 
-eval:
+rm_eval:
+  function: eval_reward_model
+  eval_dataset_kwargs:
+    class: IPLComparisonOfflineDataset
+    env: walker2d-medium-replay-v2
+    batch_size: 32
+    mode: human
+    eval: false
+rl_eval:
   function: eval_offline
   num_ep: 10
   deterministic: true
