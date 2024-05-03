@@ -5,11 +5,11 @@ algorithm:
   max_exp_clip: 100.0
   discount: 0.99
   tau: 0.005
-  seq_len: 24
+  seq_len: 25
   future_len: 5
   z_dim: 64 # [64, 128]
   prior_sample: 5 # [5, 10]
-  vae_steps: 250000 # tune
+  vae_steps: 50000
   reward_steps: 50000
   kl_loss_coef: 5.0 # [0.5, 5.0]
   kl_balance_coef: 0.8
@@ -104,7 +104,7 @@ rl_dataloader:
 trainer:
   env_freq: null
   rm_label: true
-  rm_steps: 50000
+  rm_steps: 100000
   rl_steps: 200000
   log_freq: 500
   profile_freq: 500
