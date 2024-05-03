@@ -54,6 +54,7 @@ rm_dataset:
     batch_size: 8
     segment_length: null
     mode: human
+    capacity: 100
 rm_dataloader:
   num_workers: 2
   batch_size: null

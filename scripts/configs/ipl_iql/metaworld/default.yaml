@@ -21,7 +21,7 @@ wandb:
   entity: null
   project: null
 
-env: hopper-medium-replay-v2
+env: door-close-v2
 env_kwargs:
 env_wrapper:
 env_wrapper_kwargs:
@@ -49,16 +49,14 @@ network:
     hidden_dims: [256, 256]
 
 dataset:
-  - class: IPLComparisonOfflineDataset
-    env: hopper-medium-expert-v2
-    batch_size: 8
-    mode: human
+  - class: MetaworldComparisonDataset
+    env: door-close-v2
+    batch_size: 16
     segment_length: null
-    capacity: 100
-  - class: D4RLOfflineDataset
-    env: hopper-medium-replay-v2
-    batch_size: 256
-    mode: transition
+    capacity: 500
+  - class: MetaworldOfflineDataset
+    env: door-close-v2
+    batch_size: 16
 
 dataloader:
   num_workers: 0  # use the main thread to sample data
@@ -66,10 +64,10 @@ dataloader:
 
 trainer:
   env_freq: null
-  total_steps: 1000000
+  total_steps: 200000
   log_freq: 500
   profile_freq: 500
-  eval_freq: 5000
+  eval_freq: 10000
 
 eval:
   function: eval_offline
