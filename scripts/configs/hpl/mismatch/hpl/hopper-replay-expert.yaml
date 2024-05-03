@@ -107,7 +107,7 @@ trainer:
   env_freq: null
   rm_label: true
   rm_steps: 350000
-  rl_steps: 1000000
+  rl_steps: 500000
   log_freq: 500
   profile_freq: 500
   eval_freq: 5000   # don't do eval
