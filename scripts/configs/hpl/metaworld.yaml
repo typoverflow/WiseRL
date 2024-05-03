@@ -5,7 +5,7 @@ algorithm:
   max_exp_clip: 100.0
   discount: 0.99
   tau: 0.005
-  seq_len: 25
+  seq_len: 24
   future_len: 5
   z_dim: 64 # [64, 128]
   prior_sample: 5 # [5, 10]
@@ -82,8 +82,8 @@ rm_dataset:
   - class: MetaworldComparisonDataset
     env: button-press-v2
     batch_size: 16
-    segment_length: null
     capacity: 500
+    segment_length: 24
   - class: MetaworldOfflineDataset
     env: button-press-v2
     batch_size: 16 # [64, 128]
@@ -116,7 +116,7 @@ rm_eval:
     class: MetaworldComparisonDataset
     env: button-press-v2
     batch_size: 32
-    segment_length: null
+    segment_length: 24
     capacity: 500
 rl_eval:
   function: eval_offline
