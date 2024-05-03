@@ -5,21 +5,19 @@ import gym
 import imageio
 import numpy as np
 import torch
-import torch.nn as nn
 
-import wiserl.module
 from wiserl.algorithm.base import Algorithm
 from wiserl.algorithm.oracle_iql import OracleIQL
 from wiserl.utils.functional import expectile_regression
 from wiserl.utils.misc import make_target, sync_target
 
 
-class RPL_IQL(OracleIQL):
+class IPL_IQL(OracleIQL):
     def __init__(
         self,
         *args,
         expectile: float = 0.7,
-        beta: float = 0.5,
+        beta: float = 0.3333,
         reward_reg: float = 0.5,
         reg_replay_weight: Optional[float] = None,
         actor_replay_weight: Optional[float] = None,
@@ -47,54 +45,12 @@ class RPL_IQL(OracleIQL):
         self.reward_criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
 
     def setup_network(self, network_kwargs):
-        network = {}
-        network["actor"] = vars(wiserl.module)[network_kwargs["actor"].pop("class")](
-            input_dim=self.observation_space.shape[0],
-            output_dim=self.action_space.shape[0],
-            **network_kwargs["actor"]
-        )
-        network["value"] = vars(wiserl.module)[network_kwargs["value"].pop("class")](
-            input_dim=self.observation_space.shape[0],
-            output_dim=1,
-            **network_kwargs["value"]
-        )
-        network["reward"] = vars(wiserl.module)[network_kwargs["reward"].pop("class")](
-            input_dim=self.observation_space.shape[0]+self.action_space.shape[0],
-            output_dim=1,
-            **network_kwargs["reward"]
-        )
-        if "encoder" in network_kwargs:
-            network["encoder"] = vars(wiserl.module)[network_kwargs["encoder"].pop("class")](
-                input_dim=self.observation_space.shape[0],
-                output_dim=1,
-                **network_kwargs["encoder"]
-            )
-        else:
-            network["encoder"] = nn.Identity()
-        self.network = nn.ModuleDict(network)
-        self.target_network = nn.ModuleDict({
-            "reward": make_target(self.network.reward),
-            "value": make_target(self.network.value)
-        })
+        super().setup_network(network_kwargs)
 
     def setup_optimizers(self, optim_kwargs):
-        self.optim = {}
-        default_kwargs = optim_kwargs.get("default", {})
+        super().setup_optimizers(optim_kwargs)
 
-        actor_kwargs = default_kwargs.copy()
-        actor_kwargs.update(optim_kwargs.get("actor", {}))
-        actor_params = itertools.chain(self.network.actor.parameters(), self.network.encoder.parameters())
-        self.optim["actor"] = vars(torch.optim)[actor_kwargs.pop("class")](actor_params, **actor_kwargs)
-
-        reward_kwargs = default_kwargs.copy()
-        reward_kwargs.update(optim_kwargs.get("reward", {}))
-        self.optim["reward"] = vars(torch.optim)[reward_kwargs.pop("class")](self.network.reward.parameters(), **reward_kwargs)
-
-        value_kwargs = default_kwargs.copy()
-        value_kwargs.update(optim_kwargs.get("value", {}))
-        self.optim["value"] = vars(torch.optim)[value_kwargs.pop("class")](self.network.value.parameters(), **value_kwargs)
-
-    def select_action(self, batch, deterministic: bool = True):
+    def select_action(self, batch, deterministic: bool=True):
         return super().select_action(batch, deterministic)
 
     def train_step(self, batches, step: int, total_steps: int):
@@ -106,44 +62,48 @@ class RPL_IQL(OracleIQL):
 
         F_B, F_S = feedback_batch["obs_1"].shape[0:2]
         F_S -= 1
-        R_B = replay_batch["obs"].shape[0] if using_replay_batch else 0
+        if using_replay_batch:
+            if len(replay_batch["obs"].shape) == 2:
+                R_B = replay_batch["obs"].shape[0]
+            else:
+                R_B = replay_batch["obs"].shape[0] * replay_batch["obs"].shape[1]
+        else:
+            R_B = 0
         split = [F_B*F_S, F_B*F_S, R_B]
 
         obs = torch.concat([
             feedback_batch["obs_1"][:, :-1].reshape(F_B*F_S, -1),
             feedback_batch["obs_2"][:, :-1].reshape(F_B*F_S, -1),
-            *((replay_batch["obs"], ) if using_replay_batch else ())
+            *((replay_batch["obs"].reshape(R_B, -1), ) if using_replay_batch else ())
         ], dim=0)
         next_obs = torch.concat([
             feedback_batch["obs_1"][:, 1:].reshape(F_B*F_S, -1),
             feedback_batch["obs_2"][:, 1:].reshape(F_B*F_S, -1),
-            *((replay_batch["next_obs"], ) if using_replay_batch else ())
+            *((replay_batch["next_obs"].reshape(R_B, -1), ) if using_replay_batch else ())
         ], dim=0)
         action = torch.concat([
             feedback_batch["action_1"][:, :-1].reshape(F_B*F_S, -1),
             feedback_batch["action_2"][:, :-1].reshape(F_B*F_S, -1),
-            *((replay_batch["action"], ) if using_replay_batch else ())
+            *((replay_batch["action"].reshape(R_B, -1), ) if using_replay_batch else ())
         ], dim=0)
         terminal = torch.concat([
             feedback_batch["terminal_1"][:, :-1].reshape(F_B*F_S, -1),
             feedback_batch["terminal_2"][:, :-1].reshape(F_B*F_S, -1),
-            *((replay_batch["terminal"], ) if using_replay_batch else ())
+            *((replay_batch["terminal"].reshape(R_B, -1), ) if using_replay_batch else ())
         ], dim=0)
 
+        # encode every thing
         encoded_obs = self.network.encoder(obs)
-        encoded_next_obs = self.network.encoder(next_obs)
+        encoded_next_obs = self.network.encoder(next_obs).detach()
 
         # compute value loss
         with torch.no_grad():
             self.target_network.eval()
-            v_old = self.target_network.value(encoded_obs.detach())
-            reward_old = self.network.reward(torch.concat([encoded_obs.detach(), action], dim=-1))
-            next_v_old = self.target_network.value(encoded_next_obs.detach())
-            q_old = reward_old + self.discount * (1-terminal) * next_v_old.min(0)[0]
-
+            q_old = self.target_network.critic(encoded_obs, action)
+            q_old = torch.min(q_old, dim=0)[0]
         v_loss, v_pred = self.v_loss(encoded_obs.detach(), q_old, reduce=False)
         if using_replay_batch and self.value_replay_weight is not None:
-            v1, v2, vr = torch.split(v_loss, split, dim=1)
+            v1, v2, vr = torch.split(v_loss, split, dim=0)
             v_loss_fb = (v1.mean() + v2.mean()) / 2
             v_loss_re = vr.mean()
             v_loss = (1-self.value_replay_weight) * v_loss_fb + self.value_replay_weight * v_loss_re
@@ -154,7 +114,7 @@ class RPL_IQL(OracleIQL):
         self.optim["value"].step()
 
         # compute actor loss
-        actor_loss, advantage = self.actor_loss(encoded_obs, action, q_old, v_old.mean(0), reduce=False)
+        actor_loss, advantage = self.actor_loss(encoded_obs, action, q_old, v_pred.detach(), reduce=False)
         if using_replay_batch and self.actor_replay_weight is not None:
             a1, a2, ar = torch.split(actor_loss, split, dim=0)
             actor_loss_fb = (a1.mean() + a2.mean()) / 2
@@ -166,25 +126,26 @@ class RPL_IQL(OracleIQL):
         actor_loss.backward()
         self.optim["actor"].step()
 
-        # compute the reward loss
-        reward_pred = self.network.reward(torch.concat([encoded_obs.detach(), action], dim=-1))
-        adv_pred = reward_pred + self.discount * (1-terminal) * next_v_old.mean(0) - v_old.mean(0)
-        adv1, adv2, advr = torch.split(adv_pred, split, dim=0)
-        # E = adv1.shape[0]
-        adv1, adv2 = adv1.reshape(F_B, F_S), adv2.reshape(F_B, F_S)
-        logits = adv2.sum(dim=-1) - adv1.sum(dim=-1)
-        labels = feedback_batch["label"].float().squeeze(-1)
-        reward_loss = self.reward_criterion(logits, labels).mean()
+        # compute the critic loss
+        q_pred = self.network.critic(encoded_obs.detach(), action)
+        with torch.no_grad():
+            next_v = self.network.value(encoded_next_obs)
+        reward = q_pred - (1-terminal) * self.discount * next_v.unsqueeze(0)
+        r1, r2, rr = torch.split(reward, split, dim=1)
+        E = r1.shape[0]
+        r1, r2 = r1.reshape(E, F_B, F_S), r2.reshape(E, F_B, F_S)
+        logits = r2.sum(dim=-1) - r1.sum(dim=-1)
+        labels = feedback_batch["label"].float().unsqueeze(0).squeeze(-1).expand(E, -1)
+        q_loss = self.reward_criterion(logits, labels).mean()
         if using_replay_batch and self.reg_replay_weight is not None:
-            r1, r2, rr = torch.split(reward_pred, split, dim=0)
             reg_loss_fb = (r1.square().mean() + r2.square().mean()) / 2
             reg_loss_re = rr.square().mean()
             reg_loss = (1-self.reg_replay_weight) * reg_loss_fb + self.reg_replay_weight * reg_loss_re
         else:
-            reg_loss = reward_pred.abs().mean()
-        self.optim["reward"].zero_grad()
-        (reward_loss + self.reward_reg * reg_loss).backward()
-        self.optim["reward"].step()
+            reg_loss = reward.square().mean()
+        self.optim["critic"].zero_grad()
+        (q_loss + self.reward_reg * reg_loss).backward()
+        self.optim["critic"].step()
 
         with torch.no_grad():
             reward_accuracy = ((logits > 0) == torch.round(labels)).float().mean()
@@ -193,19 +154,18 @@ class RPL_IQL(OracleIQL):
             scheduler.step()
 
         if step % self.target_freq == 0:
-            sync_target(self.network.value, self.target_network.value, tau=self.tau)
-            sync_target(self.network.reward, self.target_network.reward, tau=self.tau)
+            sync_target(self.network.critic, self.target_network.critic, tau=self.tau)
 
         metrics = {
-            "loss/reward_loss": reward_loss.item(),
+            "loss/q_loss": q_loss.item(),
             "loss/v_loss": v_loss.item(),
             "loss/actor_loss": actor_loss.item(),
             "loss/reg_loss": reg_loss.item(),
+            "misc/q_pred": q_pred.mean().item(),
             "misc/v_pred": v_pred.mean().item(),
             "misc/advantage": advantage.mean().item(),
-            "misc/reward_value": reward_pred.mean().item(),
-            "misc/reward_acc": reward_accuracy.mean().item(),
-            "misc/residual_abs": (adv_pred - reward_pred).abs().mean().item()
+            "misc/reward_value": reward.mean().item(),
+            "misc/reward_acc": reward_accuracy.mean().item()
         }
         if using_replay_batch and self.actor_replay_weight is not None:
             metrics.update({
