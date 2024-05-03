@@ -54,11 +54,11 @@ dataset:
     batch_size: 8
     mode: human
     segment_length: null
+    capacity: 100
   - class: D4RLOfflineDataset
     env: walker2d-medium-expert-v2
     batch_size: 256
     mode: transition
-    reward_normalize: true
 
 dataloader:
   num_workers: 0  # use the main thread to sample data

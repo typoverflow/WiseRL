@@ -85,6 +85,7 @@ rm_dataset:
     env: walker2d-medium-expert-v2
     batch_size: 8
     mode: human
+    capacity: 100
   - class: D4RLOfflineDataset
     env: walker2d-medium-replay-v2
     batch_size: 512

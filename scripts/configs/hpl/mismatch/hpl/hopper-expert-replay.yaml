@@ -85,6 +85,7 @@ rm_dataset:
     env: hopper-medium-expert-v2
     batch_size: 8
     mode: human
+    capacity: 100
   - class: D4RLOfflineDataset
     env: hopper-medium-replay-v2
     batch_size: 512

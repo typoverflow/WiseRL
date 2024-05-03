@@ -13,7 +13,7 @@ algorithm:
   reward_steps: 100000
   kl_loss_coef: 5.0 # [0.5, 5.0]
   kl_balance_coef: 0.8
-  reg_coef: 0.0
+  reg_coef: 0.0001
   rm_label: true
 
 checkpoint: null
@@ -26,7 +26,7 @@ wandb:
   entity: null
   project: null
 
-env: walker2d-medium-expert-v2
+env: hopper-medium-v2
 env_kwargs:
 env_wrapper:
 env_wrapper_kwargs:
@@ -76,18 +76,18 @@ network:
 
 rm_dataset:
   - class: D4RLOfflineDataset
-    env: walker2d-medium-expert-v2
+    env: hopper-medium-v2
     batch_size: 64 # [64, 128]
     mode: trajectory
     segment_length: 100
     padding_mode: none
   - class: IPLComparisonOfflineDataset
-    env: walker2d-medium-replay-v2
+    env: hopper-medium-replay-v2
     batch_size: 8
     mode: human
     capacity: 100
   - class: D4RLOfflineDataset
-    env: walker2d-medium-expert-v2
+    env: hopper-medium-v2
     batch_size: 512
     mode: transition
 rm_dataloader:
@@ -96,7 +96,7 @@ rm_dataloader:
 
 rl_dataset:
   - class: D4RLOfflineDataset
-    env: walker2d-medium-expert-v2
+    env: hopper-medium-v2
     batch_size: 512
     mode: transition
 rl_dataloader:
@@ -116,7 +116,7 @@ rm_eval:
   function: eval_reward_model
   eval_dataset_kwargs:
     class: IPLComparisonOfflineDataset
-    env: walker2d-medium-replay-v2
+    env: hopper-medium-replay-v2
     batch_size: 32
     mode: human
     eval: false

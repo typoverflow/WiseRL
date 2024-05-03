@@ -26,7 +26,7 @@ wandb:
   entity: null
   project: null
 
-env: walker2d-medium-expert-v2
+env: walker2d-medium-v2
 env_kwargs:
 env_wrapper:
 env_wrapper_kwargs:
@@ -76,7 +76,7 @@ network:
 
 rm_dataset:
   - class: D4RLOfflineDataset
-    env: walker2d-medium-expert-v2
+    env: walker2d-medium-v2
     batch_size: 64 # [64, 128]
     mode: trajectory
     segment_length: 100
@@ -87,7 +87,7 @@ rm_dataset:
     mode: human
     capacity: 100
   - class: D4RLOfflineDataset
-    env: walker2d-medium-expert-v2
+    env: walker2d-medium-v2
     batch_size: 512
     mode: transition
 rm_dataloader:
@@ -96,7 +96,7 @@ rm_dataloader:
 
 rl_dataset:
   - class: D4RLOfflineDataset
-    env: walker2d-medium-expert-v2
+    env: walker2d-medium-v2
     batch_size: 512
     mode: transition
 rl_dataloader:
