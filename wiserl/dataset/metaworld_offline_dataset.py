@@ -115,12 +115,17 @@ class MetaworldOfflineDataset(torch.utils.data.IterableDataset):
         while True:
             idxs = np.random.randint(0, self.data_size, self.batch_size)
             idxs = np.squeeze(idxs)
+            traj_len = self.data["obs"][0].shape[0]
+            mask = np.ones([self.batch_size, traj_len, 1], dtype=np.float32)
+            timestep = np.stack([np.arange(traj_len) for _ in idxs], axis=0)
             yield {
                 "obs": self.data["obs"][idxs],
                 "next_obs": self.data["next_obs"][idxs],
                 "action": self.data["action"][idxs],
                 "reward": self.data["reward"][idxs],
                 "terminal": self.data["terminal"][idxs],
+                "mask": mask,
+                "timestep": timestep,
             }
 
     def load_dataset(self):
