@@ -66,6 +66,7 @@ rl_dataset:
   - class: MetaworldOfflineDataset
     env: door-close-v2
     batch_size: 16
+    capacity: 5000
 rl_dataloader:
   num_workers: 2
   batch_size: null

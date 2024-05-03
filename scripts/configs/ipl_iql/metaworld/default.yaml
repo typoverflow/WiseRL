@@ -57,6 +57,7 @@ dataset:
   - class: MetaworldOfflineDataset
     env: door-close-v2
     batch_size: 16
+    capacity: 5000
 
 dataloader:
   num_workers: 0  # use the main thread to sample data
