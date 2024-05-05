@@ -1,0 +1,99 @@
+algorithm:
+  class: BTIQL
+  beta: 0.3333
+  expectile: 0.7
+  max_exp_clip: 100.0
+  reward_reg: 0.0
+  rm_label: true
+
+checkpoint: null
+seed: 0
+name: default
+debug: false
+device: null
+wandb:
+  activate: false
+  entity: null
+  project: null
+
+env: hopper-medium-v2
+env_kwargs:
+env_wrapper:
+env_wrapper_kwargs:
+
+optim:
+  default:
+    class: Adam
+    lr: 0.0003
+
+network:
+  reward:
+    class: EnsembleMLP
+    ensemble_size: 1
+    hidden_dims: [256, 256]
+    reward_act: sigmoid
+  actor:
+    class: SquashedGaussianActor
+    hidden_dims: [256, 256]
+    reparameterize: false
+    conditioned_logstd: false
+    logstd_min: -5
+    logstd_max: 2
+  critic:
+    class: Critic
+    ensemble_size: 2
+    hidden_dims: [256, 256]
+  value:
+    class: Critic
+    ensemble_size: 1
+    hidden_dims: [256, 256]
+
+rm_dataset:
+  - class: IPLComparisonOfflineDataset
+    env: hopper-medium-expert-v2
+    batch_size: 8
+    segment_length: null
+    mode: human
+    capacity: 100
+rm_dataloader:
+  num_workers: 2
+  batch_size: null
+
+rl_dataset:
+  - class: D4RLOfflineDataset
+    env: hopper-medium-v2
+    batch_size: 256
+    mode: transition
+    reward_normalize: true
+rl_dataloader:
+  num_workers: 2
+  batch_size: null
+
+trainer:
+  env_freq: null
+  rm_label: true
+  rm_steps: 50000
+  rl_steps: 1000000
+  log_freq: 500
+  profile_freq: 500
+  eval_freq: 5000
+
+rm_eval:
+  function: eval_reward_model
+  eval_dataset_kwargs:
+    class: IPLComparisonOfflineDataset
+    env: hopper-medium-expert-v2
+    batch_size: 32
+    mode: human
+    eval: false
+rl_eval:
+  function: eval_offline
+  num_ep: 10
+  deterministic: true
+
+schedulers:
+  actor:
+    class: CosineAnnealingLR
+    T_max: 1000000
+
+processor: null
