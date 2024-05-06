@@ -8,12 +8,12 @@ import imageio
 import numpy as np
 import torch
 import torch.nn as nn
-from offlinerllib.module.net.attention.gpt2 import GPT2
 
 import wiserl.module
 from wiserl.algorithm.base import Algorithm
 from wiserl.module.actor import DeterministicActor, GaussianActor
 from wiserl.module.encoder_decoder import MLPEncDec
+from wiserl.module.net.attention.gpt2 import GPT2
 from wiserl.module.net.mlp import MLP
 from wiserl.utils.functional import expectile_regression
 from wiserl.utils.misc import make_target, sync_target
