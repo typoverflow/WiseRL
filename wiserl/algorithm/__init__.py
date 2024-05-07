@@ -8,4 +8,5 @@ from wiserl.algorithm.ipl.ipl_awac import IPL_AWAC
 from wiserl.algorithm.ipl.ipl_iql import IPL_IQL
 from wiserl.algorithm.oracle_awac import OracleAWAC
 from wiserl.algorithm.oracle_iql import OracleIQL
+from wiserl.algorithm.pt.pt_iql import PTIQL
 from wiserl.algorithm.sft import SFT

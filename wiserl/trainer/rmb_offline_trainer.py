@@ -110,8 +110,10 @@ class RewardModelBasedOfflineTrainer(OfflineTrainer):
         self._rl_datasets = self.setup_datasets(self.rl_dataset_kwargs)
         if self.rm_label:
             self.logger.info(f"Relabeling the reward using pretrained reward model ...")
+            self.algorithm.eval()
             for d in self._rl_datasets:
                 d.relabel_reward(self.algorithm)
+            self.algorithm.train()
         self._rl_dataloaders, self._rl_dataloaders_iter = self.setup_dataloaders(self._rl_datasets, self.rl_dataloader_kwargs)
         for step in trange(0, self.rl_steps+1, desc="RL"):
             batches = [next(d) for d in self._rl_dataloaders_iter]
@@ -138,7 +140,7 @@ class RewardModelBasedOfflineTrainer(OfflineTrainer):
             self._env.close()
         if self._eval_env is not None:
             self._eval_env.close()
-            
+
     def rm_evaluate(self):
         if self.rm_eval_kwargs is None:
             return {}

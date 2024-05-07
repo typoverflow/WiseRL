@@ -171,7 +171,8 @@ class MetaworldOfflineDataset(torch.utils.data.IterableDataset):
             batch = {
                 "obs": self.data["obs"][idx],
                 "action": self.data["action"][idx],
-                "next_obs": self.data["next_obs"][idx]
+                "next_obs": self.data["next_obs"][idx],
+                "mask": self.data["mask"][idx]
             }
             batch = agent.format_batch(batch)
             reward = agent.select_reward(batch).detach().cpu().numpy()
