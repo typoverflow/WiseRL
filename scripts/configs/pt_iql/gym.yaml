@@ -37,6 +37,7 @@ network:
     embed_dim: 256
     pref_embed_dim: 256
     num_heads: 1
+    reward_act: sigmoid
   actor:
     class: SquashedGaussianActor
     hidden_dims: [256, 256]

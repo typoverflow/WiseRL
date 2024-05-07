@@ -18,6 +18,7 @@ class PreferenceTransformer(BaseTransformer):
         num_layers: int,
         seq_len: int,
         num_heads: int=1,
+        reward_act: str="identity",
         attention_dropout: Optional[float]=0.1,
         residual_dropout: Optional[float]=0.1,
         embed_dropout: Optional[float]=0.1,
@@ -52,6 +53,8 @@ class PreferenceTransformer(BaseTransformer):
                 nn.GELU(),
                 nn.Linear(pref_embed_dim, 1)
             )
+        # reward activation
+        self.reward_act = nn.Identity() if reward_act == "identity" else nn.Sigmoid()
 
     def forward(
         self,
@@ -82,10 +85,12 @@ class PreferenceTransformer(BaseTransformer):
             query, key, value = out.split([self.pref_embed_dim, self.pref_embed_dim, 1], dim=2)
             query = query / (self.pref_embed_dim ** 0.25)
             key = key / (self.pref_embed_dim ** 0.25)
+            value = self.reward_act(value)
             attention_weights = torch.bmm(query, key.transpose(1, 2))
             attention_weights = torch.softmax(attention_weights, dim=2)
             out = torch.bmm(attention_weights, value)
             return value, out
         else:
             value = self.output_layer(out)
+            value = self.reward_act(value)
             return value, value

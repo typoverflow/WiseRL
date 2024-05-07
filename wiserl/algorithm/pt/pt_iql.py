@@ -62,6 +62,7 @@ class PTIQL(OracleIQL):
             num_layers=reward_kwargs["num_layers"],
             seq_len=self.max_seq_len,
             num_heads=reward_kwargs["num_heads"],
+            reward_act=reward_kwargs["reward_act"],
             use_weighted_sum=self.use_weighted_sum
         )
         self.network["reward"] = reward
