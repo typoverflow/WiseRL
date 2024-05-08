@@ -244,16 +244,37 @@ class CliffWalkingComparisonDataset(torch.utils.data.IterableDataset):
 
         assert path is not None
         dataset = np.load(path)
+        dataset = {k: np.asarray(v) for k, v in dataset.items()}
         if capacity is not None:
             dataset = utils.get_from_batch(dataset, 0, capacity)
         dataset = utils.remove_float64(dataset)
 
         self.data = dataset
-        self.data_size, self.data_segment_length = dataset["obs"].shape[0:2]
+        self.data_size, self.data_segment_length = dataset["obs_1"].shape[0:2]
 
     def __len__(self):
         return self.data_size
 
-    def sample(self):
+    def sample_idx(self, idx):
         idx = np.squeeze(idx)
-        is_batch = len(idx.shape) > 0
+        batch = {
+            "obs_1": self.data["obs_1"][idx],
+            "obs_2": self.data["obs_2"][idx],
+            "action_1": self.data["action_1"][idx],
+            "action_2": self.data["action_2"][idx],
+            "label": self.data["label"][idx][:, None],
+        }
+        return batch
+
+    def __iter__(self):
+        while True:
+            idxs = np.random.randint(0, len(self), size=self.batch_size)
+            yield self.sample_idx(idxs)
+
+    def create_sequential_iter(self):
+        start, end = 0, min(self.batch_size, self.data_size)
+        while start < self.data_size:
+            idxs = list(range(start, min(end, self.data_size)))
+            yield self.sample_idx(idxs)
+            start += self.batch_size
+            end += self.batch_size

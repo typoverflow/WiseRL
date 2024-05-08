@@ -18,10 +18,12 @@ def generate_demos(dataset, num_trajs, steps=0):
     idxs = np.random.choice(N, size=(num_trajs, ), replace=False)
     return dataset["obs"][idxs], dataset["action"][idxs], dataset["reward"][idxs], dataset["traj_return"][idxs]
 
-def create_training_data(obss, actions, returns, num_trajs):
+def create_training_data(obss, actions, returns, rewards, num_trajs):
     training_obss = []
     training_actions = []
     training_labels = []
+    training_rewards = []
+    # training_returns = []
     num_demos = len(obss)
     for i in range(num_trajs):
         ti = tj = 0
@@ -35,7 +37,11 @@ def create_training_data(obss, actions, returns, num_trajs):
         training_obss.append(np.stack([obss[ti], obss[tj]], axis=0))
         training_actions.append(np.stack([actions[ti], actions[tj]], axis=0))
         training_labels.append(label)
-    return np.stack(training_obss, axis=0), np.stack(training_actions, axis=0), np.stack(training_labels, axis=0)
+        training_rewards.append(np.stack([rewards[ti], rewards[tj]], axis=0))
+    return np.stack(training_obss, axis=0), \
+        np.stack(training_actions, axis=0), \
+        np.stack(training_labels, axis=0), \
+        np.stack(training_rewards, axis=0)
 
 def learn_reward(reward_network, optimizer, training_obss, training_actions, training_labels, num_iter, l1_reg):
     loss_criterion = nn.CrossEntropyLoss()
@@ -110,15 +116,16 @@ if __name__=="__main__":
     device = "cuda"
 
     env_name = args.env_name
-    data = np.load(os.path.join(f"./datasets/cliff/{args.env_name}"))
+    # data = np.load(os.path.join(f"./datasets/cliff/pref/eps_optimal_0.5-num300.npz"))
+    data = np.load(os.path.join(f"./datasets/cliff/unlabel/{args.env_name}"))
     dataset = {}
     for k, v in data.items():
         dataset[k] = np.asarray(v)
-    action = dataset["action"]
-    action_shape = action.shape
-    onehot_action = np.eye(4).astype(np.float32)
-    onehot_action = onehot_action[action.astype(np.int32), :]
-    dataset["action"] = onehot_action
+    # action = dataset["action"]
+    # action_shape = action.shape
+    # onehot_action = np.eye(4).astype(np.float32)
+    # onehot_action = onehot_action[action.astype(np.int32), :]
+    # dataset["action"] = onehot_action
     input_dim = 6
 
     initial_pairs = args.initial_pairs
@@ -144,6 +151,7 @@ if __name__=="__main__":
     training_obss_list = []
     training_actions_list = []
     training_labels_list = []
+    training_rewards_list = []
     models_list = []
 
     for seed in range(num_ensembles):
@@ -155,11 +163,12 @@ if __name__=="__main__":
         returns_list.append(learning_returns)
         reward_list.append(learning_rewards)
 
-        training_obss, training_actions, training_labels = create_training_data(demo_obss, demo_actions, learning_returns, initial_pairs)
+        training_obss, training_actions, training_labels, training_rewards = create_training_data(demo_obss, demo_actions, learning_returns, learning_rewards, initial_pairs)
 
         training_obss_list.append(training_obss)
         training_actions_list.append(training_actions)
         training_labels_list.append(training_labels)
+        training_rewards_list.append(training_rewards)
 
         reward_net = RewardNet(input_dim, [256, 256]).to(device)
         optimizer = optim.Adam(reward_net.parameters(), lr=lr, weight_decay=weight_decay)
@@ -170,8 +179,8 @@ if __name__=="__main__":
     large_num_trajs = int(dataset["obs"].shape[0])
     large_num_pairs = large_num_trajs
     large_demo_obss, large_demo_actions, large_demo_rewards, large_demo_returns = generate_demos(dataset, large_num_trajs)
-    large_training_obss, large_training_actions, large_training_labels = create_training_data(
-        large_demo_obss, large_demo_actions, large_demo_returns, large_num_pairs
+    large_training_obss, large_training_actions, large_training_labels, large_training_rewards = create_training_data(
+        large_demo_obss, large_demo_actions, large_demo_returns, large_demo_rewards, large_num_pairs
     )
 
     with torch.no_grad():
@@ -255,6 +264,7 @@ if __name__=="__main__":
                 training_obss_list[i] = np.concatenate([training_obss_list[i], large_training_obss[idx][None, ...]], axis=0)
                 training_actions_list[i] = np.concatenate([training_actions_list[i], large_training_actions[idx][None, ...]], axis=0)
                 training_labels_list[i] = np.concatenate([training_labels_list[i], large_training_labels[idx][None, ...]], axis=0)
+                training_rewards_list[i] = np.concatenate([training_rewards_list[i], large_training_rewards[idx][None, ...]], axis=0)
 
         # retrain the models
         for seed in range(num_ensembles):
@@ -290,9 +300,17 @@ if __name__=="__main__":
                 pred_list = np.concatenate(pred_list)
                 label_list = large_training_labels
                 acc_list.append((pred_list == label_list).mean())
-            print(f"Round {round}: acc {acc_list}, labeled size: {training_obss_list[0].shape[0]}")
+            print(f"Round {round}: acc {acc_list}, labeled size: {training_obss_list[0].shape}")
 
     save_obss = training_obss_list[0][-300:]
-    save_actions = training_obss_list[0][-300:]
+    save_actions = training_actions_list[0][-300:]
     save_labels = training_labels_list[0][-300:]
-    np.savez(f"./datasets/cliff/pref/eps_optimal_0.5-num300.npz")
+    save_rewards = training_rewards_list[0][-300:]
+    np.savez(f"./datasets/cliff/pref/eps_optimal_0.5-num300.npz",
+             obs_1=save_obss[:, 0],
+             obs_2=save_obss[:, 1],
+             action_1=save_actions[:, 0],
+             action_2=save_actions[:, 1],
+             label=save_labels,
+             reward_1=save_rewards[:, 0],
+             reward_2=save_rewards[:, 1])

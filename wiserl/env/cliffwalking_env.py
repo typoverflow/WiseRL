@@ -7,7 +7,12 @@ from tqdm import trange
 class CliffWalkingEnv(gym.Env):
     def __init__(self, epsilon=0.4, penalty=-25.0, reward=15.0, max_len=20):
         super().__init__()
-        self.action_space = spaces.Discrete(4)
+        self.action_space = spaces.Box(
+            low=0,
+            high=1,
+            shape=(4, ),
+            dtype=np.int32
+        ) # this is for maing the action space one-hot
         self.observation_space = spaces.Box(
             low=0.0,
             high=1.0,
@@ -202,7 +207,7 @@ def collect_data(env, agent, num_episodes):
             traj_return += reward
             traj_length += 1
             ep_obss.append(obs)
-            ep_actions.append(action)
+            ep_actions.append(onehot_action)
             ep_next_obss.append(next_obs)
             ep_rewards.append(reward)
             ep_terminals.append(done)
@@ -221,7 +226,7 @@ def collect_data(env, agent, num_episodes):
         traj_lengths.append(traj_length)
 
     obss = np.stack(obss, axis=0).astype(np.float32)
-    actions = np.asarray(actions).astype(np.float32)
+    actions = np.stack(actions, axis=0).astype(np.float32)
     next_obss = np.stack(next_obss, axis=0).astype(np.float32)
     rewards = np.asarray(rewards).astype(np.float32)
     terminals = np.asarray(terminals).astype(np.float32)
@@ -300,4 +305,4 @@ if __name__ == "__main__":
         "traj_return": traj_returns,
         "traj_length": traj_lengths
     }
-    pass
+    np.savez("./datasets/cliff/unlabel/eps_optimal_0.5-num10000.npz", **dataset)

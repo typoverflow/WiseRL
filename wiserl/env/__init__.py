@@ -38,6 +38,10 @@ try:
 except ImportError:
     print("Warning: Could not import RobomimicEnv")
 
+extra_envs = {
+    "EmptyEnv": EmptyEnv,
+    "CliffWalkingEnv": CliffWalkingEnv,
+}
 
 def get_env(
     env: str,
@@ -47,7 +51,7 @@ def get_env(
 ):
     try:
         env_kwargs = env_kwargs or {}
-        env = vars()[env](**env_kwargs)
+        env = extra_envs[env](**env_kwargs)
     except KeyError as e:
         env = gym.make(env, **env_kwargs)
     if wrapper_class is not None:
