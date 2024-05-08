@@ -240,11 +240,12 @@ class RobomimicDataset(torch.utils.data.IterableDataset):
                 return_[t] += return_[t+1]
             self.data["return"] = return_
             # normalization
+            prev_return_min, prev_return_max = return_[:, 0].min(), return_[:, 0].max()
             max_return = max(abs(return_[:, 0].max()), abs(return_[:, 0].min()), return_[:, 0].max()-return_[:, 0].min(), 1.0)
-            norm = 1000 / max_return
+            norm = 1000. / max_return
             self.data["reward"] *= norm
             self.data["return"] *= norm
-            print(f"[RobomimicDataset]: return range: [{return_[:,0].min()}, {return_[:, 0].max()}], multiplying norm factor {norm}.")
+            print(f"[D4RLOfflineDataset]: return range: [{prev_return_min}, {prev_return_max}], multiplying norm factor {norm}.")
         elif self.mode == "transition":
             ep_reward_ = []
             episode_reward = 0

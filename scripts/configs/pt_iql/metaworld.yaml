@@ -1,9 +1,11 @@
 algorithm:
-  class: BTIQL
+  class: PTIQL
   beta: 0.3333
-  expectile: 0.75
+  expectile: 0.7
   max_exp_clip: 100.0
   reward_reg: 0.0
+  use_weighted_sum: true
+  max_seq_len: 100
   rm_label: true
 
 checkpoint: null
@@ -16,7 +18,7 @@ wandb:
   entity: null
   project: null
 
-env: door-close-v2
+env: button-press-v2
 env_kwargs:
 env_wrapper:
 env_wrapper_kwargs:
@@ -25,36 +27,36 @@ optim:
   default:
     class: Adam
     lr: 0.0003
+  reward:
+    class: AdamW
+    lr: 0.0003
 
 network:
   reward:
-    class: EnsembleMLP
-    ensemble_size: 1
-    hidden_dims: [256, 256, 256]
+    num_layers: 3
+    embed_dim: 256
+    pref_embed_dim: 256
+    num_heads: 1
     reward_act: identity
-    ortho_init: true
   actor:
     class: SquashedGaussianActor
-    hidden_dims: [256, 256, 256]
+    hidden_dims: [256, 256]
     reparameterize: false
     conditioned_logstd: false
     logstd_min: -5
     logstd_max: 2
-    ortho_init: true
   critic:
     class: Critic
     ensemble_size: 2
-    hidden_dims: [256, 256, 256]
-    ortho_init: true
+    hidden_dims: [256, 256]
   value:
     class: Critic
     ensemble_size: 1
-    hidden_dims: [256, 256, 256]
-    ortho_init: true
+    hidden_dims: [256, 256]
 
 rm_dataset:
   - class: MetaworldComparisonDataset
-    env: door-close-v2
+    env: button-press-v2
     batch_size: 16
     segment_length: null
     capacity: 500
@@ -64,7 +66,7 @@ rm_dataloader:
 
 rl_dataset:
   - class: MetaworldOfflineDataset
-    env: door-close-v2
+    env: button-press-v2
     batch_size: 16
     capacity: 5000
 rl_dataloader:
@@ -97,5 +99,9 @@ schedulers:
   actor:
     class: CosineAnnealingLR
     T_max: 500000
+  reward:
+    warmup_steps: 5000
+    max_steps: 50000
+
 
 processor: null

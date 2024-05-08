@@ -101,8 +101,8 @@ schedulers:
     class: CosineAnnealingLR
     T_max: 1000000
   reward:
-    warmup_steps: 50000
-    max_steps: 500000
+    warmup_steps: 5000
+    max_steps: 50000
 
 
 processor: null
