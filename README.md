@@ -9,9 +9,10 @@
 WiseRL provides unofficial and banchmarked PyTorch implementations for Offline Preference-Based RL algorithms, including:
 - Oracle-IQL & Oracle AWAC
 - Supervised Finetuning (SFT)
-- BT Model + IQL/AWAC (BT-IQL/AWAC)
+- Bradley-Terry Model + IQL/AWAC (BT-IQL/AWAC)
 - Contrastive Prefereing Learning (CPL)
 - Inverse Preference Learning + IQL/AWAC (IPL-IQL/AWAC)
+- Preference Transformer + IQL (PT-IQL)
 
 # Installation
 + clone this repo and install the dependencies
