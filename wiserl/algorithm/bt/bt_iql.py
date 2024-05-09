@@ -1,4 +1,5 @@
 import itertools
+import os
 from operator import itemgetter
 from typing import Any, Dict, Optional, Type
 
@@ -156,3 +157,14 @@ class BTIQL(OracleIQL):
             "misc/advantage": advantage.mean().item()
         }
         return metrics
+
+    def load_pretrain(self, path):
+        for attr in ["reward"]:
+            state_dict = torch.load(os.path.join(path, attr+".pt"), map_location=self.device)
+            self.network.__getattr__(attr).load_state_dict(state_dict)
+
+    def save_pretrain(self, path):
+        os.makedirs(path, exist_ok=True)
+        for attr in ["reward"]:
+            state_dict = self.network.__getattr__(attr).state_dict()
+            torch.save(state_dict, os.path.join(path, attr+".pt"))
