@@ -164,7 +164,7 @@ class HindsightPreferenceLearningAWAC(HindsightPreferenceLearning):
         with torch.no_grad():
             self.target_network.eval()
             next_actions = self.network.actor.sample(next_obs)[0]
-            target_q = self.target_network.critic(obs, next_actions).min(0)[0]
+            target_q = self.target_network.critic(next_obs, next_actions).min(0)[0]
             target_q = reward + self.discount * (1-terminal.float()) * target_q
         q_pred = self.network.critic(obs, action)
         q_loss = (q_pred - target_q.unsqueeze(0)).pow(2).sum(0).mean()
