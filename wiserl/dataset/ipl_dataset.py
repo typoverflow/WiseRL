@@ -42,7 +42,7 @@ class IPLComparisonOfflineDataset(torch.utils.data.IterableDataset):
     ):
         super().__init__()
         assert env in DATASET_PATH.keys(), f"Env {env} not registered for PT dataset"
-        assert mode in {"human", "script"}, "Supported modes for IPLComparisonOfflineDataset: \{human, script\}"
+        assert mode in {"human", "script"}, "Supported modes for IPLComparisonOfflineDataset: {human, script}"
 
         self.env_name = env
         self.mode = mode

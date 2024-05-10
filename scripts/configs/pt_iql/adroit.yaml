@@ -1,9 +1,11 @@
 algorithm:
-  class: BTIQL
+  class: PTIQL
   beta: 0.3333
   expectile: 0.75
   max_exp_clip: 100.0
   reward_reg: 0.0
+  use_weighted_sum: true
+  max_seq_len: 100
   rm_label: true
 
 checkpoint: null
@@ -25,12 +27,16 @@ optim:
   default:
     class: Adam
     lr: 0.0003
+  reward:
+    class: AdamW
+    lr: 0.0003
 
 network:
   reward:
-    class: EnsembleMLP
-    ensemble_size: 1
-    hidden_dims: [256, 256, 256]
+    num_layers: 3
+    embed_dim: 256
+    pref_embed_dim: 256
+    num_heads: 1
     reward_act: identity
   actor:
     class: SquashedGaussianActor
@@ -52,7 +58,6 @@ rm_dataset:
   - class: IPLComparisonOfflineDataset
     env: pen-cloned-v1
     batch_size: 8
-    segment_length: null
     mode: human
 rm_dataloader:
   num_workers: 2
@@ -62,8 +67,8 @@ rl_dataset:
   - class: D4RLOfflineDataset
     env: pen-cloned-v1
     batch_size: 256
-    mode: transition
-    reward_normalize: true
+    mode: trajectory
+    segment_length: 20
 rl_dataloader:
   num_workers: 2
   batch_size: null
@@ -94,5 +99,9 @@ schedulers:
   actor:
     class: CosineAnnealingLR
     T_max: 500000
+  reward:
+    warmup_steps: 10000
+    max_steps: 100000
+
 
 processor: null

@@ -1,7 +1,7 @@
 algorithm:
   class: IPL_IQL
   beta: 0.3333
-  expectile: 0.7
+  expectile: 0.75
   reward_reg: 0.5
   reg_replay_weight: 0.5
   actor_replay_weight: 0.5

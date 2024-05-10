@@ -1,7 +1,7 @@
 algorithm:
   class: IPL_IQL
   beta: 0.3333
-  expectile: 0.7
+  expectile: 0.75
   reward_reg: 0.5
   reg_replay_weight: 0.5
   actor_replay_weight: 0.5
@@ -21,7 +21,7 @@ wandb:
   entity: null
   project: null
 
-env: hopper-medium-replay-v2
+env: pen-cloned-v1
 env_kwargs:
 env_wrapper:
 env_wrapper_kwargs:
@@ -34,7 +34,7 @@ optim:
 network:
   actor:
     class: SquashedGaussianActor
-    hidden_dims: [256, 256]
+    hidden_dims: [256, 256, 256]
     reparameterize: false
     conditioned_logstd: false
     logstd_min: -5
@@ -42,20 +42,20 @@ network:
   critic:
     class: Critic
     ensemble_size: 2
-    hidden_dims: [256, 256]
+    hidden_dims: [256, 256, 256]
   value:
     class: Critic
     ensemble_size: 1
-    hidden_dims: [256, 256]
+    hidden_dims: [256, 256, 256]
 
 dataset:
   - class: IPLComparisonOfflineDataset
-    env: hopper-medium-replay-v2
+    env: pen-cloned-v1
     batch_size: 8
     mode: human
     segment_length: null
   - class: D4RLOfflineDataset
-    env: hopper-medium-replay-v2
+    env: pen-cloned-v1
     batch_size: 256
     mode: transition
     reward_normalize: true
