@@ -252,7 +252,7 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
             # CHECK: may be bug. the max and min returns are not consistent with those computed in transition mode
             return_ = self.data["reward"].copy()
             for t in reversed(range(return_.shape[1]-1)):
-                return_[t] += return_[t+1]
+                return_[:, t] += return_[:, t+1]
             self.data["return"] = return_
             # normalization
             prev_return_min, prev_return_max = return_[:, 0].min(), return_[:, 0].max()
