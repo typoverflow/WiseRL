@@ -8,6 +8,7 @@ from gym.envs import register
 
 from .base import EmptyEnv
 from .cliffwalking_env import CliffWalkingEnv
+from .gridworld_env import FourRoomsEnv
 
 # try:
 #     from metaworld.envs.mujoco.env_dict import ALL_V2_ENVIRONMENTS
@@ -41,6 +42,7 @@ except ImportError:
 extra_envs = {
     "EmptyEnv": EmptyEnv,
     "CliffWalkingEnv": CliffWalkingEnv,
+    "FourRoomsEnv": FourRoomsEnv
 }
 
 def get_env(

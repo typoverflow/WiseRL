@@ -15,6 +15,10 @@ from wiserl.dataset.mismatched_mujoco_dataset import (
     MismatchedComparisonDataset,
     MismatchedOfflineDataset,
 )
+from wiserl.dataset.gridworld_dataset import (
+    FourRoomsComparisonDataset, 
+    FourRoomsOfflineDataset
+)
 
 from .replay_buffer import ReplayBuffer
 

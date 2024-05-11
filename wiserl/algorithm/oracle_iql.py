@@ -6,7 +6,7 @@ import torch.nn as nn
 
 import wiserl.module
 from wiserl.algorithm.base import Algorithm
-from wiserl.module.actor import DeterministicActor, GaussianActor
+from wiserl.module.actor import DeterministicActor, GaussianActor, CategoricalActor
 from wiserl.utils.functional import expectile_regression
 from wiserl.utils.misc import make_target, sync_target
 
@@ -96,6 +96,8 @@ class OracleIQL(Algorithm):
             policy_out = torch.sum((self.network.actor.sample(encoded_obs)[0] - action)**2, dim=-1, keepdim=True)
         elif isinstance(self.network.actor, GaussianActor):
             policy_out = - self.network.actor.evaluate(encoded_obs, action)[0]
+        elif isinstance(self.network.actor, CategoricalActor):
+            policy_out = - self.network.actor.evaluate(encoded_obs, action, is_onehot_action=True)[0]
         actor_loss = (exp_advantage * policy_out)
         return actor_loss.mean() if reduce else actor_loss, advantage
 

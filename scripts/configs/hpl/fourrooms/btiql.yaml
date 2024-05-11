@@ -1,0 +1,84 @@
+algorithm:
+  class: BTIQL
+  beta: 0.3333
+  expectile: 0.7
+  max_exp_clip: 100.0
+  reward_reg: 0.0
+  rm_label: true
+
+checkpoint: null
+seed: 0
+name: default
+debug: false
+device: null
+wandb:
+  activate: false
+  entity: null
+  project: null
+
+env: FourRoomsEnv
+env_kwargs:
+env_wrapper:
+env_wrapper_kwargs:
+
+optim:
+  default:
+    class: Adam
+    lr: 0.0003
+
+network:
+  reward:
+    class: EnsembleMLP
+    ensemble_size: 1
+    hidden_dims: [256, 256]
+    reward_act: identity
+  actor:
+    class: CategoricalActor
+    hidden_dims: [256, 256]
+  critic:
+    class: Critic
+    ensemble_size: 2
+    hidden_dims: [256, 256]
+  value:
+    class: Critic
+    ensemble_size: 1
+    hidden_dims: [256, 256]
+
+rm_dataset:
+  - class: FourRoomsComparisonDataset
+    batch_size: 8
+    path: datasets/fourrooms/random_num5000_len20.npz
+rm_dataloader:
+  num_workers: 0
+  batch_size: null
+
+rl_dataset:
+  - class: FourRoomsOfflineDataset
+    batch_size: 128
+    path: datasets/fourrooms/unlabel/random_num5000_len10.npz
+    # capacity: 5000
+rl_dataloader:
+  num_workers: 0
+  batch_size: null
+
+trainer:
+  env_freq: null
+  rm_label: true
+  rm_steps: 50000
+  rl_steps: 1000000
+  log_freq: 500
+  profile_freq: 500
+  eval_freq: 5000
+
+rm_eval:
+  function: eval_fourrooms_rm
+rl_eval:
+  function: eval_fourrooms_rl
+  deterministic: true
+
+schedulers:
+  actor:
+    class: CosineAnnealingLR
+    T_max: 1000000
+
+processor: null

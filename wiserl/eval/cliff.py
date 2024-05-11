@@ -48,3 +48,52 @@ def eval_cliffwalking_rm(
         "go_up_reward": reward[0].item(),
         "go_right_reward": reward[1].item()
     }
+
+@torch.no_grad()
+def eval_fourrooms_rm(
+    env: gym, 
+    algorithm: Algorithm, 
+):  
+    test_obs = np.zeros([env.num_rows, env.num_cols, 2])
+    for i in range(env.num_rows):
+        test_obs[i, :, 0] = i
+    for j in range(env.num_cols):
+        test_obs[:, j, 1] = j
+    test_obs = test_obs.reshape(-1, 2)
+    test_obs = np.stack([test_obs]*4, axis=0)
+    test_actions = np.zeros([4, test_obs.shape[1], 4])
+    for i in range(4):
+        test_actions[i, :, i] = 1.
+    test_batch = {
+        "obs": test_obs, 
+        "action": test_actions
+    }
+    test_batch = algorithm.format_batch(test_batch)
+    reward = algorithm.select_reward(test_batch).cpu().numpy()
+    argmax_action = np.argmax(reward, axis=0)
+    argmax_action = argmax_action.reshape(env.num_rows, env.num_cols)
+    env.render_action(argmax_action)
+    print("--------------------------------", flush=True)
+    return {}
+
+@torch.no_grad()
+def eval_fourrooms_rl(
+    env: gym.Env, 
+    algorithm: Algorithm,
+    deterministic=True
+):
+    test_obs = np.zeros([env.num_rows, env.num_cols, 2])
+    for i in range(env.num_rows):
+        test_obs[i, :, 0] = i
+    for j in range(env.num_cols):
+        test_obs[:, j, 1] = j
+    test_obs = test_obs.reshape(-1, 2)
+    test_batch = {
+        "obs": test_obs, 
+    }
+    test_batch = algorithm.format_batch(test_batch)
+    action = algorithm.select_action(test_batch, deterministic=deterministic)
+    action = action.reshape(env.num_rows, env.num_cols)
+    env.render_action(action)
+    print("--------------------------------", flush=True)
+    return {}
