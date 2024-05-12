@@ -7,11 +7,11 @@ algorithm:
   tau: 0.005
   seq_len: 100
   future_len: 5
-  z_dim: 64 # [64, 128]
-  prior_sample: 5 # [5, 10]
+  z_dim: 128 # [64, 128]
+  prior_sample: 20 # [5, 10]
   vae_steps: 250000 # tune
-  reward_steps: 50000
-  kl_loss_coef: 5.0 # [0.5, 5.0]
+  reward_steps: 100000
+  kl_loss_coef: 1.0 # [0.5, 5.0]
   kl_balance_coef: 0.8
   reg_coef: 0.0001
   rm_label: true
@@ -38,22 +38,22 @@ optim:
 
 network:
   encoder:
-    embed_dim: 128
+    embed_dim: 256
     num_layers: 3
     num_heads: 4
     dropout: 0.1
   decoder:
     embed_dim: 64
-    hidden_dims: [256, 256] # shallower?
+    hidden_dims: [512, 512] # shallower?
     ortho_init: true
   prior:
-    hidden_dims: [256, 256]
+    hidden_dims: [512, 512]
     ortho_init: true
   reward:
     class: Critic
     hidden_dims: [256, 256, 256] # tune
     ortho_init: true
-    reward_act: identity
+    reward_act: sigmoid
   actor:
     class: SquashedGaussianActor
     hidden_dims: [256, 256, 256]
@@ -105,7 +105,7 @@ rl_dataloader:
 trainer:
   env_freq: null
   rm_label: true
-  rm_steps: 300000
+  rm_steps: 350000
   rl_steps: 1000000
   log_freq: 500
   profile_freq: 500
