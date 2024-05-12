@@ -1,10 +1,13 @@
 algorithm:
-  class: BTIQL
+  class: IPL_AWAC
   beta: 0.3333
-  expectile: 0.75
+  reward_reg: 0.5
+  reg_replay_weight: 0.5
+  actor_replay_weight: 0.5
+  tau: 0.005
   max_exp_clip: 100.0
-  reward_reg: 0.0
-  rm_label: true
+  discount: 0.99
+  target_freq: 1
 
 checkpoint: null
 seed: 0
@@ -27,12 +30,6 @@ optim:
     lr: 0.0003
 
 network:
-  reward:
-    class: EnsembleMLP
-    ensemble_size: 1
-    hidden_dims: [256, 256, 256]
-    reward_act: identity
-    ortho_init: true
   actor:
     class: SquashedGaussianActor
     hidden_dims: [256, 256, 256]
@@ -40,62 +37,42 @@ network:
     conditioned_logstd: false
     logstd_min: -5
     logstd_max: 2
-    ortho_init: true
   critic:
     class: Critic
     ensemble_size: 2
     hidden_dims: [256, 256, 256]
-    ortho_init: true
   value:
     class: Critic
     ensemble_size: 1
     hidden_dims: [256, 256, 256]
-    ortho_init: true
 
-rm_dataset:
+dataset:
   - class: MetaworldComparisonDataset
     env: button-press-v2
     batch_size: 16
     segment_length: null
     capacity: 500
-rm_dataloader:
-  num_workers: 2
-  batch_size: null
-
-rl_dataset:
   - class: MetaworldOfflineDataset
     env: button-press-v2
     batch_size: 16
     capacity: 5000
-rl_dataloader:
-  num_workers: 2
-  batch_size: null
+
+dataloader:
+  num_workers: 0  # use the main thread to sample data
+  batch_size: null  # do not merge the data along batch axis
 
 trainer:
   env_freq: null
-  rm_label: true
-  rm_steps: 50000
-  rl_steps: 500000
+  total_steps: 500000
   log_freq: 500
   profile_freq: 500
   eval_freq: 10000
 
-rm_eval:
-  function: eval_reward_model
-  eval_dataset_kwargs:
-    class: MetaworldComparisonDataset
-    env: button-press-v2
-    batch_size: 32
-    segment_length: null
-    capacity: 500
-rl_eval:
+eval:
   function: eval_offline
-  num_ep: 20
+  num_ep: 10
   deterministic: true
 
 schedulers:
-  actor:
-    class: CosineAnnealingLR
-    T_max: 500000
 
 processor: null

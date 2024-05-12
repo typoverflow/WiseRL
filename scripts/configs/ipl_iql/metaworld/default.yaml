@@ -21,7 +21,7 @@ wandb:
   entity: null
   project: null
 
-env: door-close-v2
+env: button-press-v2
 env_kwargs:
 env_wrapper:
 env_wrapper_kwargs:
@@ -50,12 +50,12 @@ network:
 
 dataset:
   - class: MetaworldComparisonDataset
-    env: door-close-v2
+    env: button-press-v2
     batch_size: 16
     segment_length: null
     capacity: 500
   - class: MetaworldOfflineDataset
-    env: door-close-v2
+    env: button-press-v2
     batch_size: 16
     capacity: 5000
 

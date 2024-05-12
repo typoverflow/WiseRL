@@ -120,7 +120,7 @@ class HindsightPreferenceLearning(Algorithm):
             action_dim=self.action_dim,
             z_dim=self.z_dim,
             num_time_delta=self.future_len+1,  # +1 because sometimes we may predict the s-a itself
-            embed_dim=dec_kwargs["embed_dim"],
+            embed_dim=self.z_dim,
             hidden_dims=dec_kwargs["hidden_dims"]
         )
         prior_kwargs = network_kwargs["prior"]
