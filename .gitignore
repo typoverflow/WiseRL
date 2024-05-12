@@ -8,5 +8,6 @@ out/
 wandb
 tests/
 datasets/
+datasets
 shells/
 ckpts
