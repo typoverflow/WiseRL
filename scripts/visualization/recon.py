@@ -48,11 +48,12 @@ if __name__ == "__main__":
         observation_space=env.observation_space,
         action_space=env.action_space,
         env=args["env"],
-        batch_size=2,
+        batch_size=100,
         mode="trajectory",
         segment_length=100,
         padding_mode="none",
     )
+    index = args["index"] if "index" in args else 0
     start = args["start"] if "start" in args else 0
     traj_len = args["traj_len"] if "traj_len" in args else 5
     traj = next(iter(dataset))
@@ -61,7 +62,7 @@ if __name__ == "__main__":
 
     # visualize the trajectory
     for i in trange(traj_len):
-        qpos, qvel = np.pad(traj["obs"][0, start+i, :env.model.nq-1].cpu().numpy(), (1, 0)), traj["obs"][0, start+i, env.model.nq-1:].cpu().numpy()
+        qpos, qvel = np.pad(traj["obs"][index, start+i, :env.model.nq-1].cpu().numpy(), (1, 0)), traj["obs"][index, start+i, env.model.nq-1:].cpu().numpy()
         env.set_state(qpos, qvel)
         img = env.render(mode='rgb_array')
         # save to imgs/img_{i}.png
@@ -88,7 +89,7 @@ if __name__ == "__main__":
                 input_z_posterior,
                 delta_t
             )
-            obs = pred_obs_action[0, :env.observation_space.shape[0]]
+            obs = pred_obs_action[index, :env.observation_space.shape[0]]
             qpos, qvel = np.pad(obs[:env.model.nq-1].cpu().numpy(), (1, 0)), obs[env.model.nq-1:].cpu().numpy()
             env.set_state(qpos, qvel)
             img = env.render(mode='rgb_array')
