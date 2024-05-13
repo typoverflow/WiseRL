@@ -95,10 +95,10 @@ if __name__ == "__main__":
             # save to imgs/img_{i}.png
             img = Image.fromarray(img)
             img.save(f"scripts/visualization/imgs/pred_{i}.png")
-            
-    gt_imgs = [cv2.imread(f'/home/gcx/workspace/fsj/WiseRL/scripts/visualization/imgs/gt_{i}.png') for i in range(31)][::6]
-    pred_imgs = [cv2.imread(f'/home/gcx/workspace/fsj/WiseRL/scripts/visualization/imgs/pred_{i}.png') for i in range(31)][::6]
+
+    gt_imgs = [cv2.imread(f'scripts/visualization/imgs/gt_{i}.png') for i in range(100)][::15]
+    pred_imgs = [cv2.imread(f'scripts/visualization/imgs/pred_{i}.png') for i in range(100)][::15]
 
     # 横着排列
     compare_imgs = np.concatenate([np.concatenate(gt_imgs, axis=1), np.concatenate(pred_imgs, axis=1)], axis=0)
-    cv2.imwrite('/home/gcx/workspace/fsj/WiseRL/scripts/visualization/imgs/compare.png', compare_imgs)
+    cv2.imwrite('scripts/visualization/imgs/compare.png', compare_imgs)
