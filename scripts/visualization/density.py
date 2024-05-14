@@ -97,10 +97,32 @@ if __name__ == "__main__":
             **bc_args["algorithm"],
             device=bc_args["device"]
         ).to(bc_args["device"])
-        bc_path = args["bc_path"] if "bc_path" in args else "log/BehavioralCloning/default/hopper-medium-replay-v2/seed0-05-14-11-08-314273/output/final.pt"
+        bc_path = args["bc_path"] if "bc_path" in args else "log/BehavioralCloning/default/hopper-medium-expert-v2/seed0-05-14-21-40-3348335/output/final.pt"
         bc.load(bc_path)
         logprob, _ = bc.network.actor.evaluate(pred_obs, pred_action)
-        sum_logprob = logprob.squeeze().sum(-1)
+        
+        bc_oao_args = parse_args("scripts/configs/bc_oao/gym.yaml", convert=False)
+        setup(bc_oao_args)
+        bc_oao = vars(wiserl.algorithm)[bc_oao_args["algorithm"].pop("class")](
+            env.observation_space,
+            env.action_space,
+            bc_oao_args["network"],
+            bc_oao_args["optim"],
+            bc_oao_args["schedulers"],
+            bc_oao_args["processor"],
+            bc_oao_args["checkpoint"],
+            **bc_oao_args["algorithm"],
+            device=bc_oao_args["device"]
+        ).to(bc_oao_args["device"])
+        bc_oao_path = args["bc_oao_path"] if "bc_path" in args else "/home/gcx/workspace/fsj/WiseRL/log/BehavioralCloningOAO/default/hopper-medium-expert-v2/seed0-05-14-21-38-757347/output/final.pt"
+        bc_oao.load(bc_oao_path)
+        logprob_oao, _ = bc_oao.network.actor.evaluate(pred_obs_action[:, :-1, :], pred_obs[:, 1:, :])
+
+        if logprob_oao.shape[1] != 0:
+            sum_logprob = torch.concat([logprob.squeeze(), logprob_oao.squeeze()], dim=-1).sum(-1)
+            print(torch.concat([logprob.squeeze(), logprob_oao.squeeze()], dim=-1).shape)
+        else:
+            sum_logprob = logprob.squeeze()
         # print(z_logprob)
         # print(sum_logprob)
         
