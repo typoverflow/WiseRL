@@ -51,11 +51,12 @@ if __name__ == "__main__":
             observation_space=env.observation_space,
             action_space=env.action_space,
             env=args["env"],
-            batch_size=2,
+            batch_size=5,
             mode="trajectory",
             segment_length=100,
             padding_mode="none",
         )
+        index = args["index"] if "index" in args else 0
         start = args["start"] if "start" in args else 0
         traj_len = args["traj_len"] if "traj_len" in args else 5
         default_traj = next(iter(dataset))
@@ -63,8 +64,8 @@ if __name__ == "__main__":
         B, L, _ = default_traj["obs"].shape
         
         # original observation and action
-        origin_action = default_traj["action"][0][start]
-        origin_obs = default_traj["obs"][0][start]
+        origin_action = default_traj["action"][index][start]
+        origin_obs = default_traj["obs"][index][start]
         origin_obs_action = torch.cat([origin_obs, origin_action], dim=-1)
         
         # sample N of z by algorithm.network.prior
@@ -100,6 +101,8 @@ if __name__ == "__main__":
         bc.load(bc_path)
         logprob, _ = bc.network.actor.evaluate(pred_obs, pred_action)
         sum_logprob = logprob.squeeze().sum(-1)
+        # print(z_logprob)
+        # print(sum_logprob)
         
         # draw plot for z_logprob and sum_logprob, save to scripts/visualization/imgs/density.png
         plt.figure()
