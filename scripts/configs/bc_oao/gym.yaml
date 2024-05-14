@@ -1,5 +1,5 @@
 algorithm:
-  class: BehavioralCloning
+  class: BehavioralCloningOAO
 
 checkpoint: null
 seed: 0
@@ -23,7 +23,7 @@ optim:
 
 network:
   actor:
-    class: SquashedGaussianActor
+    class: GaussianActor
     hidden_dims: [256, 256]
     reparameterize: false
     conditioned_logstd: true

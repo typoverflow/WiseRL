@@ -1,6 +1,7 @@
 from wiserl.algorithm.bt.bt_awac import BTAWAC
 from wiserl.algorithm.bt.bt_iql import BTIQL
 from wiserl.algorithm.bc import BehavioralCloning
+from wiserl.algorithm.bc_oao import BehavioralCloningOAO
 from wiserl.algorithm.cpl import CPL
 from wiserl.algorithm.cpl_kl import CPL_KL
 from wiserl.algorithm.hpl.hpl import HindsightPreferenceLearning
