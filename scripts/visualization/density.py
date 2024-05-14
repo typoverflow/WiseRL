@@ -13,6 +13,8 @@ import wiserl.algorithm
 from wiserl.env import get_env
 from wiserl.dataset import D4RLOfflineDataset
 
+import matplotlib.pyplot as plt
+
 import d4rl
 
 if __name__ == "__main__":
@@ -67,13 +69,42 @@ if __name__ == "__main__":
         
         # sample N of z by algorithm.network.prior
         # GaussianActor(input_dim=self.obs_dim+self.action_dim, output_dim=self.z_dim)
-        N = 3
+        N = 1000
         # duplicate origin_obs_act to N
         z, z_logprob, _ = algorithm.network.prior.sample(origin_obs_action.repeat(N, 1))
+        z_logprob = z_logprob.squeeze()
         
         # sample N of traj by algorithm.network.decoder
         delta_t = torch.arange(1, traj_len + 1).unsqueeze(0).repeat(N, 1).to(algorithm.device)
         input_obs_action = origin_obs_action.repeat(N, traj_len, 1)
         input_z = z.unsqueeze(1).repeat(1, traj_len, 1)
         pred_obs_action = algorithm.network.decoder(input_obs_action, input_z, delta_t)
-        print(pred_obs_action.shape)
+        pred_obs = pred_obs_action[..., :env.observation_space.shape[0]]
+        pred_action = pred_obs_action[..., env.observation_space.shape[0]:]
+
+        # load BehavioralCloning
+        bc_args = parse_args("scripts/configs/bc/gym.yaml", convert=False)
+        setup(bc_args)
+        bc = vars(wiserl.algorithm)[bc_args["algorithm"].pop("class")](
+            env.observation_space,
+            env.action_space,
+            bc_args["network"],
+            bc_args["optim"],
+            bc_args["schedulers"],
+            bc_args["processor"],
+            bc_args["checkpoint"],
+            **bc_args["algorithm"],
+            device=bc_args["device"]
+        ).to(bc_args["device"])
+        bc_path = args["bc_path"] if "bc_path" in args else "log/BehavioralCloning/default/hopper-medium-replay-v2/seed0-05-14-11-08-314273/output/final.pt"
+        bc.load(bc_path)
+        logprob, _ = bc.network.actor.evaluate(pred_obs, pred_action)
+        sum_logprob = logprob.squeeze().sum(-1)
+        
+        # draw plot for z_logprob and sum_logprob, save to scripts/visualization/imgs/density.png
+        plt.figure()
+        plt.scatter(z_logprob.cpu().numpy(), sum_logprob.cpu().numpy())
+        plt.xlabel("z_logprob")
+        plt.ylabel("sum_logprob")
+        plt.savefig("scripts/visualization/imgs/density.png")
+        

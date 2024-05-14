@@ -1,0 +1,55 @@
+algorithm:
+  class: BehavioralCloning
+
+checkpoint: null
+seed: 0
+name: default
+debug: false
+device: null
+wandb:
+  activate: false
+  entity: null
+  project: null
+
+env: hopper-medium-replay-v2
+env_kwargs:
+env_wrapper:
+env_wrapper_kwargs:
+
+optim:
+  default:
+    class: Adam
+    lr: 0.0003
+
+network:
+  actor:
+    class: SquashedGaussianActor
+    hidden_dims: [256, 256]
+    reparameterize: false
+    conditioned_logstd: false
+    logstd_min: -5
+    logstd_max: 2
+
+dataset:
+  - class: D4RLOfflineDataset
+    env: hopper-medium-replay-v2
+    batch_size: 256
+    mode: transition
+    reward_normalize: true
+
+dataloader:
+  num_workers: 0  # use the main thread to sample data
+  batch_size: null  # do not merge the data along batch axis
+
+trainer:
+  env_freq: null
+  total_steps: 1000000
+  log_freq: 500
+  profile_freq: 500
+  eval_freq: 9999999
+
+eval: null
+
+schedulers:
+
+processor: null
