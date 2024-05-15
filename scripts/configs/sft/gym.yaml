@@ -1,0 +1,58 @@
+algorithm:
+  class: SFT
+  bc_data: win
+
+checkpoint: null
+seed: 0
+name: default
+debug: false
+device: null
+wandb:
+  activate: false
+  entity: null
+  project: null
+
+env: hopper-medium-replay-v2
+env_kwargs:
+env_wrapper:
+env_wrapper_kwargs:
+
+optim:
+  default:
+    class: Adam
+    lr: 0.0003
+
+network:
+  actor:
+    class: SquashedDeterministicActor
+    dropout: 0.0
+    hidden_dims: [512, 512]
+
+dataset:
+    class: IPLComparisonOfflineDataset
+    env: hopper-medium-replay-v2
+    batch_size: 64
+    segment_length: null
+    mode: human
+dataloader:
+  num_workers: 0  # use the main thread to sample data
+  batch_size: null  # do not merge the data along batch axis
+
+trainer:
+  env_freq: null
+  total_steps: 1000000
+  log_freq: 500
+  profile_freq: 500
+  eval_freq: 5000
+
+eval:
+  function: eval_offline
+  num_ep: 10
+  deterministic: true
+
+schedulers:
+  actor:
+    class: CosineAnnealingLR
+    T_max: 1000000
+
+processor: null
