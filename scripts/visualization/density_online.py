@@ -60,8 +60,8 @@ if __name__ == "__main__":
             **bc_args["algorithm"],
             device=bc_args["device"]
         ).to(bc_args["device"])
-        bc_path = args["bc_path"] if "bc_path" in args else "log/BehavioralCloning/default/hopper-medium-replay-v2/seed0-05-14-11-08-314273/output/final.pt"
-        # bc_path = args["bc_path"] if "bc_path" in args else "log/BehavioralCloning/default/hopper-medium-replay-v2/seed0-05-15-00-20-841938/output/final.pt"
+        # bc_path = args["bc_path"] if "bc_path" in args else "log/BehavioralCloning/default/hopper-medium-replay-v2/seed0-05-14-11-08-314273/output/final.pt"
+        bc_path = args["bc_path"] if "bc_path" in args else "log/BehavioralCloning/default/hopper-medium-replay-v2/seed0-05-15-00-20-841938/output/final.pt"
         bc.load(bc_path)
         
         # load dataset and trajectory
@@ -80,7 +80,8 @@ if __name__ == "__main__":
         N = args["N"] if "N" in args else 1000
         default_traj = next(iter(dataset))
         # default_traj = algorithm.format_batch(default_traj)
-        B, L, _ = default_traj["obs"].shape
+        B, _, _ = default_traj["obs"].shape
+        L = traj_len + 1
         
         # original observation and action
         origin_action = default_traj["action"][index][start]
@@ -99,7 +100,7 @@ if __name__ == "__main__":
             obs, reward, done, _ = env.step(origin_action)
             pred_obs[i, 0] = torch.tensor(origin_obs, dtype=torch.float).to(bc.device)
             pred_action[i, 0] = torch.tensor(origin_action, dtype=torch.float).to(bc.device)
-            for j in range(1, traj_len + 1):
+            for j in range(1, L):
                 action, logprob, _ = bc.network.actor.sample(torch.tensor(obs, dtype=torch.float).to(bc.device))
                 pred_obs[i, j] = torch.tensor(obs, dtype=torch.float).to(bc.device)
                 pred_action[i, j] = action
@@ -111,10 +112,13 @@ if __name__ == "__main__":
         
         # # sample N of z by algorithm.network.future_encoder
         pred_obs_action = torch.concat([pred_obs, pred_action], dim=-1)
+        causal_mask = torch.tril(torch.ones([L, L]), diagonal=-1).bool()
+        future_mask = torch.triu(torch.ones([L, L]), diagonal=algorithm.future_len+1).bool()
+        future_attention_mask = torch.bitwise_or(causal_mask, future_mask).to(algorithm.device)
         out = algorithm.network.future_encoder(
             inputs=pred_obs_action,
             timesteps=None, # here we don't use the timestep from dataset, but use the default `np.arange(len)`
-            attention_mask=algorithm.future_attention_mask,
+            attention_mask=future_attention_mask,
             do_embedding=True
         )
         z_posterior, *_ = algorithm.network.future_proj.sample(out, deterministic=True, return_mean_logstd=True)
