@@ -68,6 +68,7 @@ class HindsightPreferenceLearning(Algorithm):
         vae_steps: int = 100000,
         rm_label: bool = True,
         reward_steps: int = 100000,
+        stoc_encoding: bool = True,
         **kwargs
     ):
         self.expectile = expectile
@@ -84,6 +85,7 @@ class HindsightPreferenceLearning(Algorithm):
         self.reg_coef = reg_coef
         self.vae_steps = vae_steps
         self.reward_steps = reward_steps
+        self.stoc_encoding = stoc_encoding
         self.rm_label = rm_label
         super().__init__(*args, **kwargs)
         # define the attention mask for future prediction
@@ -288,7 +290,8 @@ class HindsightPreferenceLearning(Algorithm):
                     timesteps=None, # consistent with vae training
                     attention_mask=self.future_attention_mask,
                     do_embedding=True
-                )
+                ),
+                deteriministic=not self.stoc_encoding
             )
             obs_action_extra = torch.concat([extra_obs, extra_action], dim=-1)
             repeated_obs_action_extra = obs_action_extra.repeat([self.prior_sample, 1, 1])
