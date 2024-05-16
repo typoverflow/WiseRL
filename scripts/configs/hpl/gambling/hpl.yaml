@@ -1,0 +1,117 @@
+algorithm:
+  class: HindsightPreferenceLearning
+  expectile: 0.7
+  beta: 0.3333
+  max_exp_clip: 100.0
+  discount: 0.99
+  tau: 0.005
+  seq_len: 2
+  future_len: 1
+  z_dim: 8 # [64, 128]
+  prior_sample: 5 # [5, 10]
+  vae_steps: 3000 # tune
+  reward_steps: 2000
+  kl_loss_coef: 2.0 # [0.5, 5.0]
+  kl_balance_coef: 0.5
+  reg_coef: 0.0
+  rm_label: false
+
+checkpoint: null
+seed: 0
+name: default
+debug: false
+device: null
+wandb:
+  activate: false
+  entity: null
+  project: null
+
+env: GamblingEnv
+env_kwargs:
+env_wrapper:
+env_wrapper_kwargs:
+
+optim:
+  default:
+    class: Adam
+    lr: 0.0003
+
+network:
+  encoder:
+    embed_dim: 64
+    num_layers: 2
+    num_heads: 2
+    dropout: 0.1
+  decoder:
+    embed_dim: 16
+    hidden_dims: [64, 64] # shallower?
+    ortho_init: true
+  prior:
+    hidden_dims: [64, 64]
+    ortho_init: true
+  reward:
+    class: Critic
+    hidden_dims: [128, 128] # tune
+    ortho_init: true
+    reward_act: tanh
+  actor:
+    class: SquashedGaussianActor
+    hidden_dims: [256, 256, 256]
+    reparameterize: false
+    conditioned_logstd: true
+    logstd_min: -7
+    logstd_max: 2
+    ortho_init: true
+  critic:
+    class: Critic
+    ensemble_size: 2
+    hidden_dims: [256, 256, 256]
+    ortho_init: true
+  value:
+    class: Critic
+    ensemble_size: 1
+    hidden_dims: [256, 256, 256]
+    ortho_init: true
+
+
+rm_dataset:
+  - class: GamblingOfflineDataset
+    batch_size: 32
+    path: datasets/gambling/random_num5000_len2.npz
+    segment_length: 2
+  - class: GamblingComparisonDataset
+  - class: GamblingOfflineDataset
+    batch_size: 32
+    path: datasets/gambling/random_num5000_len2.npz
+    segment_length: 2
+rm_dataloader:
+  num_workers: 2
+  batch_size: null
+
+rl_dataset:
+  - class: D4RLOfflineDataset
+    env: hopper-medium-replay-v2
+    batch_size: 512
+    mode: transition
+rl_dataloader:
+  num_workers: 2
+  batch_size: null
+
+trainer:
+  env_freq: null
+  rm_label: false
+  rm_steps: 6000
+  rl_steps: 0
+  log_freq: 50
+  profile_freq: 500
+  eval_freq: 50   # don't do eval
+
+rm_eval:
+  function: eval_gambling_rm
+rl_eval:
+  function: eval_fourrooms_rl
+  deterministic: true
+
+schedulers:
+
+processor: null

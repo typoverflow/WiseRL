@@ -123,10 +123,110 @@ class FourRoomsComparisonDataset(torch.utils.data.IterableDataset):
             yield self.sample_idx(idxs, noisy_label=False)
             start += self.batch_size
             end += self.batch_size
-            
+        
 
+class GamblingComparisonDataset(torch.utils.data.IterableDataset):
+    def __init__(
+        self, 
+        observation_space: gym.Space, 
+        action_space: gym.Space, 
+    ):
+        super().__init__()
+        self.data = {
+            "obs_1": np.asarray([
+                [0, 1], 
+                [0, 1], 
+                [0, 2], 
+                [0, 1]
+                ]), 
+            "obs_2": np.asarray([
+                [0, 3], 
+                [0, 2], 
+                [0, 3], 
+                [0, 3]
+                ]), 
+            "action_1": np.asarray([
+                [0, 2], 
+                [0, 2], 
+                [0, 2], 
+                [0, 2]
+                ]), 
+            "action_2": np.asarray([
+                [1, 2], 
+                [0, 2], 
+                [1, 2], 
+                [1, 2]
+                ]), 
+            "reward_1": np.asarray([
+                [1, ], 
+                [1, ], 
+                [-1, ], 
+                [1, ]
+                ]), 
+            "reward_2": np.asarray([
+                [0, ], 
+                [-1, ], 
+                [0, ], 
+                [0]
+                ]), 
+            "label": np.asarray([
+                [0, ], 
+                [0, ], 
+                [1, ], 
+                [0, ]
+                ])
+        }
+        def convert_to_onehot(x, n):
+            onehot = np.eye(n)
+            x_onehot = onehot[x, :]
+            return x_onehot.astype(np.float32)
+        self.data = {
+            "obs_1": convert_to_onehot(self.data["obs_1"], 5),
+            "obs_2": convert_to_onehot(self.data["obs_2"], 5), 
+            "action_1": convert_to_onehot(self.data["action_1"], 3), 
+            "action_2": convert_to_onehot(self.data["action_2"], 3), 
+            "reward_1": self.data["reward_1"], 
+            "reward_2": self.data["reward_2"], 
+            "label": self.data["label"]
+        }
+        self.data_size = 3
+        
+        data = []
+        label = []
+        repeat = 50
+        for r in range(repeat):
+            data.append(self.data)
+            # l = 1 / (1+np.exp(1*(self.data["reward_1"] - self.data["reward_2"])))
+            # eps = np.random.random(size=l.shape)
+            # l = np.where(eps > l, 0, 1)
+            l = self.data["label"]
+            label.append(l)
+        self.data = {
+            "obs_1": np.concatenate([d["obs_1"] for d in data], axis=0),
+            "obs_2": np.concatenate([d["obs_2"] for d in data], axis=0),
+            "action_1": np.concatenate([d["action_1"] for d in data], axis=0),
+            "action_2": np.concatenate([d["action_2"] for d in data], axis=0),
+            "label": np.concatenate(label, axis=0)
+        }
+        
+        
+    def __len__(self):
+        return self.data_size
 
-class FourRoomsOfflineDataset(torch.utils.data.IterableDataset):
+    def __iter__(self):
+        while True:
+            idx = np.random.choice(self.data_size, size=[16, ])
+            batch = {
+                "obs_1": self.data["obs_1"][idx],
+                "obs_2": self.data["obs_2"][idx],
+                "action_1": self.data["action_1"][idx], 
+                "action_2": self.data["action_2"][idx], 
+                "label": self.data["label"][idx]
+            }
+            yield batch
+        
+
+class GamblingOfflineDataset(torch.utils.data.IterableDataset):
     def __init__(
         self, 
         observation_space: gym.Space,
@@ -145,7 +245,7 @@ class FourRoomsOfflineDataset(torch.utils.data.IterableDataset):
         
     def load_dataset(self):
         if self.path is not None:
-            print(f"[FourRoomsOfflineDataset]: Loading dataset from {self.path} ...")
+            print(f"[GamblingOfflineDataset]: Loading dataset from {self.path} ...")
             dataset = np.load(self.path)
         else:
             assert False
@@ -218,5 +318,3 @@ class FourRoomsOfflineDataset(torch.utils.data.IterableDataset):
         for t in reversed(range(return_.shape[1]-1)):
             return_[t] += return_[t+1]
         self.data["return"] = return_
-        
-

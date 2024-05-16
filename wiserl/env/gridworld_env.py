@@ -9,6 +9,53 @@ import os
 from tqdm import trange
 import time
 
+
+class GamblingEnv:
+    def __init__(self, r1=1, r2=-1, r3=0, prob=0.1):
+        self.r1 = r1
+        self.r2 = r2
+        self.r3 = r3
+        self.prob = prob
+        self.state_dim = [5, ]
+        self.action_dim = [3, ]
+        self.observation_space = Box(shape=self.state_dim, low=-np.inf, high=np.inf, dtype=np.float32)
+        self.action_space = Box(low=0.0, high=1.0, shape=self.action_dim, dtype=np.float32)
+
+    def state2obs(self):
+        obs = np.zeros(self.state_dim, dtype=np.float32)
+        obs[self.cur_state] = 1.0
+        return obs
+
+    def reset(self):
+        self.cur_state = 0
+        return self.state2obs()
+    
+    def step(self, action):
+        action = np.argmax(action)
+        if self.cur_state == 0:
+            if action == 0:
+                if np.random.random() < self.prob:
+                    self.cur_state = 1
+                else:
+                    self.cur_state = 2
+            elif action == 1:
+                self.cur_state = 3
+            else:
+                assert False
+            reward = 0.0
+            done = False
+        else:
+            assert action == 2
+            if self.cur_state == 1:
+                reward = self.r1
+            elif self.cur_state == 2:
+                reward = self.r2
+            elif self.cur_state == 3:
+                reward = self.r3
+            done = True
+            self.cur_state = 4
+        return self.state2obs(), reward, done, {}
+
 class FourRoomsEnv:
     _num_rows = -1
     _num_cols = -1
@@ -336,7 +383,41 @@ def get_cliff_dataset(agent, env, num_episodes, episode_len=10):
         "obs": obss, "action": actions, "next_obs": next_obss, "return": returns
     }
     
-
+def get_gambling_dataset(agent, env, num_episodes, episode_len=2):
+    np.random.seed(42)
+    obss = []
+    actions = []
+    next_obss = []
+    rewards = []
+    for e in trange(num_episodes):
+        ep_obss = []
+        ep_actions = []
+        ep_next_obss = []
+        ep_rewards = []
+        obs = env.reset()
+        for _ in range(episode_len):
+            action = agent.select_action(obs)
+            next_obs, reward, done, info = env.step(action)
+            
+            ep_obss.append(obs)
+            ep_actions.append(action)
+            ep_next_obss.append(next_obs)
+            ep_rewards.append(reward)
+            
+            obs = next_obs
+        
+        obss.append(np.stack(ep_obss, axis=0))
+        actions.append(np.stack(ep_actions, axis=0))
+        next_obss.append(np.stack(ep_next_obss, axis=0))
+        rewards.append(np.stack(ep_rewards, axis=0))
+    obss = np.stack(obss, axis=0)
+    actions = np.stack(actions, axis=0)
+    next_obss = np.stack(next_obss, axis=0)
+    rewards = np.stack(rewards, axis=0)
+    return {
+        "obs": obss, "action": actions, "next_obs": next_obss, "rewards": rewards
+    }
+    
 class RandomAgent():
     def __init__(self, *args, **kwargs):
         pass
@@ -447,7 +528,22 @@ class EpsilonGreedyAgent():
             return np.random.randint(4)
         else:
             return self.greedy_agent.select_action(state)
+        
+class GamblingRandomWalker():
+    def __init__(self, *args, **kwargs):
+        pass
     
+    def select_action(self, obs):
+        state = np.argmax(obs)
+        if state == 0:
+            action = np.random.choice([0, 1])
+        else:
+            action = 2
+        onehot_action = np.zeros([3, ], dtype=np.float32)
+        onehot_action[action] = 1.
+        return onehot_action
+        
+
 if __name__ == "__main__":
     # env = FourRoomsEnv()
     # action_map = {
@@ -507,22 +603,28 @@ if __name__ == "__main__":
     # dataset = get_cliff_dataset(agent, env, num_episodes=5000, episode_len=50)
     # np.savez("datasets/fourrooms/greedy0.0_num5000_len50.npz", **dataset)
 
-    agent = EpsilonGreedyAgent(0.1)
-    env = FourRoomsEnv(random_start=True)
-    dataset = get_cliff_dataset(agent, env, num_episodes=5000, episode_len=50)
-    np.savez("datasets/fourrooms/greedy0.1_num5000_len50.npz", **dataset)
+    # agent = EpsilonGreedyAgent(0.1)
+    # env = FourRoomsEnv(random_start=True)
+    # dataset = get_cliff_dataset(agent, env, num_episodes=5000, episode_len=50)
+    # np.savez("datasets/fourrooms/greedy0.1_num5000_len50.npz", **dataset)
     
-    agent = EpsilonGreedyAgent(0.3)
-    env = FourRoomsEnv(random_start=True)
-    dataset = get_cliff_dataset(agent, env, num_episodes=5000, episode_len=50)
-    np.savez("datasets/fourrooms/greedy0.3_num5000_len50.npz", **dataset)
+    # agent = EpsilonGreedyAgent(0.3)
+    # env = FourRoomsEnv(random_start=True)
+    # dataset = get_cliff_dataset(agent, env, num_episodes=5000, episode_len=50)
+    # np.savez("datasets/fourrooms/greedy0.3_num5000_len50.npz", **dataset)
     
-    agent = EpsilonGreedyAgent(0.6)
-    env = FourRoomsEnv(random_start=True)
-    dataset = get_cliff_dataset(agent, env, num_episodes=5000, episode_len=50)
-    np.savez("datasets/fourrooms/greedy0.6_num5000_len50.npz", **dataset)
+    # agent = EpsilonGreedyAgent(0.6)
+    # env = FourRoomsEnv(random_start=True)
+    # dataset = get_cliff_dataset(agent, env, num_episodes=5000, episode_len=50)
+    # np.savez("datasets/fourrooms/greedy0.6_num5000_len50.npz", **dataset)
     
-    agent = EpsilonGreedyAgent(1.0)
-    env = FourRoomsEnv(random_start=True)
-    dataset = get_cliff_dataset(agent, env, num_episodes=5000, episode_len=50)
-    np.savez("datasets/fourrooms/greedy1.0_num5000_len50.npz", **dataset)
+    # agent = EpsilonGreedyAgent(1.0)
+    # env = FourRoomsEnv(random_start=True)
+    # dataset = get_cliff_dataset(agent, env, num_episodes=5000, episode_len=50)
+    # np.savez("datasets/fourrooms/greedy1.0_num5000_len50.npz", **dataset)
+    
+    
+    agent = GamblingRandomWalker()
+    env = GamblingEnv(1, -1, 0, 0.1)
+    dataset = get_gambling_dataset(agent, env, num_episodes=5000, episode_len=2)
+    np.savez("datasets/gambling/random_num5000_len2.npz", **dataset)

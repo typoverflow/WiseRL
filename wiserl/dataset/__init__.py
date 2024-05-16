@@ -17,7 +17,9 @@ from wiserl.dataset.mismatched_mujoco_dataset import (
 )
 from wiserl.dataset.gridworld_dataset import (
     FourRoomsComparisonDataset, 
-    FourRoomsOfflineDataset
+    # FourRoomsOfflineDataset, 
+    GamblingComparisonDataset, 
+    GamblingOfflineDataset
 )
 
 from .replay_buffer import ReplayBuffer

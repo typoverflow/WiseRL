@@ -50,6 +50,7 @@ class BTIQL(OracleIQL):
         reward_act = {
             "identity": nn.Identity(),
             "sigmoid": nn.Sigmoid(),
+            "tanh": nn.Tanh(), 
         }.get(network_kwargs["reward"].pop("reward_act"))
         reward = vars(wiserl.module)[network_kwargs["reward"].pop("class")](
             input_dim=self.observation_space.shape[0]+self.action_space.shape[0],

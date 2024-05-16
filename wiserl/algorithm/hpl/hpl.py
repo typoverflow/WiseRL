@@ -139,7 +139,11 @@ class HindsightPreferenceLearning(Algorithm):
         )
         reward = nn.Sequential(
             reward,
-            nn.Sigmoid() if reward_act == "sigmoid" else nn.Identity()
+            {
+                "sigmoid": nn.Sigmoid(), 
+                "identity": nn.Identity(), 
+                "tanh": nn.Tanh()
+            }.get(reward_act)
         )
         actor = vars(wiserl.module)[network_kwargs["actor"].pop("class")](
             input_dim=self.observation_space.shape[0],

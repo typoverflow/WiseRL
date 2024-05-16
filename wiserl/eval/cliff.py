@@ -9,6 +9,33 @@ import torch
 import wiserl.dataset
 from wiserl.algorithm.base import Algorithm
 
+@torch.no_grad()
+def eval_gambling_rm(
+    env: gym.Env,
+    algorithm: Algorithm, 
+):
+    test_data = {
+        "obs": np.asarray([0, 0, 1, 2, 3]), 
+        "action": np.asarray([0, 1, 2, 2, 2])
+    }
+    def convert_to_onehot(x, n):
+        onehot = np.eye(n)
+        x_onehot = onehot[x, :]
+        return x_onehot.astype(np.float32)
+    test_data = {
+        "obs": convert_to_onehot(test_data["obs"], 5), 
+        "action": convert_to_onehot(test_data["action"], 3)
+    }
+    test_data = algorithm.format_batch(test_data)
+    reward = algorithm.select_reward(test_data)
+    reward = reward.cpu().numpy().tolist()
+    print("reward: ", reward)
+    # print(reward)
+    # import time
+    # time.sleep(0.5)
+    return {}
+
+    
 
 @torch.no_grad()
 def eval_cliffwalking_rm(
