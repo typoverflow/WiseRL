@@ -378,9 +378,55 @@ class OptimalAgent():
     def select_action(self, state):
         prob = self.optimal_actions[state[0], state[1]]
         return np.random.choice(4, p=prob)
-    
 
-class EpsilonGreedyAgent():
+    def evaluate(self, state, action):
+        prob = self.optimal_actions[state[..., 0].astype(np.int32), state[..., 1].astype(np.int32)]
+        prob = prob * action
+        prob = (prob != 0).sum(-1)
+        return prob
+
+class GreedyAgent():
+    def __init__(self, *args, **kwargs):
+        self.optimal_map = [
+            4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 
+            4, 1, 1, 1, 2, 2, 4, 1, 1, 1, 1, 1, 4, 
+            4, 1, 1, 1, 1, 2, 4, 1, 1, 1, 1, 0, 4, 
+            4, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0, 4, 
+            4, 1, 1, 1, 1, 0, 4, 1, 1, 0, 0, 0, 4, 
+            4, 1, 1, 1, 0, 0, 4, 1, 0, 0, 0, 0, 4, 
+            4, 4, 0, 4, 4, 4, 4, 0, 0, 0, 0, 0, 4, 
+            4, 1, 0, 3, 3, 2, 4, 4, 4, 0, 4, 4, 4, 
+            4, 1, 0, 3, 2, 2, 4, 1, 1, 0, 3, 3, 4, 
+            4, 1, 0, 2, 2, 2, 4, 1, 1, 0, 3, 3, 4,
+            4, 1, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 4, 
+            4, 1, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 4, 
+            4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,  
+        ]
+        actions = []
+        for i, a in enumerate(self.optimal_map):
+            if a == 4:
+                actions.append(np.zeros([4, ]))
+                continue
+            if type(a) == int:
+                a = [a, ]
+            act = np.zeros([4, ])
+            act[a] = 1/len(a)
+            actions.append(act)
+        actions = np.stack(actions, axis=0)
+        actions = actions.reshape(13, 13, 4)
+        self.optimal_actions = actions
+    
+    def select_action(self, state):
+        prob = self.optimal_actions[state[0], state[1]]
+        return prob.argmax()
+
+    # def evaluate(self, state, action):
+    #     prob = self.optimal_actions[state[..., 0].astype(np.int32), state[..., 1].astype(np.int32)]
+    #     prob = prob * action
+    #     prob = (prob != 0).sum(-1)
+    #     return prob
+    
+class EpsilonOptimalAgent():
     def __init__(self, eps=0.5, **kwargs):
         self.eps = eps
         self.optimal_agent = OptimalAgent()
@@ -390,6 +436,17 @@ class EpsilonGreedyAgent():
             return np.random.randint(4)
         else:
             return self.optimal_agent.select_action(state)
+        
+class EpsilonGreedyAgent():
+    def __init__(self, eps=0.5, **kwargs):
+        self.eps = eps
+        self.greedy_agent = GreedyAgent()
+    
+    def select_action(self, state):
+        if np.random.rand() < self.eps:
+            return np.random.randint(4)
+        else:
+            return self.greedy_agent.select_action(state)
     
 if __name__ == "__main__":
     # env = FourRoomsEnv()
@@ -409,7 +466,7 @@ if __name__ == "__main__":
     # print("--------------------------------")
 
     # env = FourRoomsEnv(random_start=True)
-    # agent = EpsilonGreedyAgent(0.6)
+    # agent = EpsilonGreedyAgent(0.2)
     # obs = env.reset()
     # done = False
     # env.render()
@@ -420,27 +477,52 @@ if __name__ == "__main__":
     #     env.render()
     # print("--------------------------------")
 
-    agent = EpsilonGreedyAgent(eps=1.0)
-    env = FourRoomsEnv(random_start=True)
-    dataset = get_cliff_dataset(agent, env, num_episodes=5000, episode_len=20)
-    np.savez("datasets/fourrooms/random_num5000_len20.npz", **dataset)
+    # agent = EpsilonOptimalAgent(eps=1.0)
+    # env = FourRoomsEnv(random_start=True)
+    # dataset = get_cliff_dataset(agent, env, num_episodes=5000, episode_len=50)
+    # np.savez("datasets/fourrooms/random_num5000_len50.npz", **dataset)
 
-    agent = EpsilonGreedyAgent(0.0)
+    # agent = EpsilonOptimalAgent(0.0)
+    # env = FourRoomsEnv(random_start=True)
+    # dataset = get_cliff_dataset(agent, env, num_episodes=5000, episode_len=50)
+    # np.savez("datasets/fourrooms/eps0.0_num5000_len50.npz", **dataset)
+
+    # agent = EpsilonOptimalAgent(0.3)
+    # env = FourRoomsEnv(random_start=True)
+    # dataset = get_cliff_dataset(agent, env, num_episodes=5000, episode_len=50)
+    # np.savez("datasets/fourrooms/eps0.3_num5000_len50.npz", **dataset)
+
+    # agent = EpsilonOptimalAgent(0.6)
+    # env = FourRoomsEnv(random_start=True)
+    # dataset = get_cliff_dataset(agent, env, num_episodes=5000, episode_len=50)
+    # np.savez("datasets/fourrooms/eps0.6_num5000_len50.npz", **dataset)
+
+    # agent = EpsilonOptimalAgent(1.0)
+    # env = FourRoomsEnv(random_start=True)
+    # dataset = get_cliff_dataset(agent, env, num_episodes=5000, episode_len=50)
+    # np.savez("datasets/fourrooms/eps1.0_num5000_len50.npz", **dataset)
+
+    # agent = EpsilonGreedyAgent(0.0)
+    # env = FourRoomsEnv(random_start=True)
+    # dataset = get_cliff_dataset(agent, env, num_episodes=5000, episode_len=50)
+    # np.savez("datasets/fourrooms/greedy0.0_num5000_len50.npz", **dataset)
+
+    agent = EpsilonGreedyAgent(0.1)
     env = FourRoomsEnv(random_start=True)
     dataset = get_cliff_dataset(agent, env, num_episodes=5000, episode_len=50)
-    np.savez("datasets/fourrooms/eps0.0_num5000_len50.npz", **dataset)
-
+    np.savez("datasets/fourrooms/greedy0.1_num5000_len50.npz", **dataset)
+    
     agent = EpsilonGreedyAgent(0.3)
     env = FourRoomsEnv(random_start=True)
     dataset = get_cliff_dataset(agent, env, num_episodes=5000, episode_len=50)
-    np.savez("datasets/fourrooms/eps0.3_num5000_len50.npz", **dataset)
-
+    np.savez("datasets/fourrooms/greedy0.3_num5000_len50.npz", **dataset)
+    
     agent = EpsilonGreedyAgent(0.6)
     env = FourRoomsEnv(random_start=True)
     dataset = get_cliff_dataset(agent, env, num_episodes=5000, episode_len=50)
-    np.savez("datasets/fourrooms/eps0.6_num5000_len50.npz", **dataset)
-
+    np.savez("datasets/fourrooms/greedy0.6_num5000_len50.npz", **dataset)
+    
     agent = EpsilonGreedyAgent(1.0)
     env = FourRoomsEnv(random_start=True)
     dataset = get_cliff_dataset(agent, env, num_episodes=5000, episode_len=50)
-    np.savez("datasets/fourrooms/eps1.0_num5000_len50.npz", **dataset)
+    np.savez("datasets/fourrooms/greedy1.0_num5000_len50.npz", **dataset)

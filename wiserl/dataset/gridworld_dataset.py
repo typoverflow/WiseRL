@@ -17,7 +17,9 @@ class FourRoomsComparisonDataset(torch.utils.data.IterableDataset):
         batch_size: Optional[int] = None,
         capacity: Optional[int] = None,
         goal_state=(1, 11), 
-        path: Optional[str] = None
+        path: Optional[str] = None, 
+        mode: str = "sparse", 
+        noisy_label: bool = False
     ):
         super().__init__()
         self.batch_size = 1 if batch_size is None else batch_size
@@ -26,7 +28,13 @@ class FourRoomsComparisonDataset(torch.utils.data.IterableDataset):
         self.path = path
         self._goal_x = goal_state[0]
         self._goal_y = goal_state[1]
-
+        self.mode = mode
+        self.noisy_label = noisy_label
+        if mode == "sparse":
+            self.capacity = 2 * capacity
+        
+        from wiserl.env.gridworld_env import OptimalAgent
+        self.optimal_agent = OptimalAgent()
         self.load_dataset()
 
     def __len__(self):
@@ -57,37 +65,65 @@ class FourRoomsComparisonDataset(torch.utils.data.IterableDataset):
         self.data = data
         self.data_segment_length = self.traj_len[0]
         
-    def __iter__(self):
-        while True:
-            traj_idx1 = np.random.randint(self.data_size, size=[self.batch_size, ])
+    def sample_idx(self, traj_idx, noisy_label=False):
+        if self.mode == "sparse":
+            traj_idx1 = traj_idx
+            traj_idx2 = traj_idx + self.data_size // 2
+        else:
+            traj_idx1 = traj_idx
             traj_idx2 = np.random.randint(self.data_size, size=[self.batch_size, ])
-            if self.segment_length is not None:
-                start_1 = np.random.randint(0, self.traj_len[traj_idx1] - self.segment_length)
-                start_2 = np.random.randint(0, self.traj_len[traj_idx2] - self.segment_length)
-                end_1 = int(start_1 + self.segment_length)
-                end_2 = int(start_2 + self.segment_length)
-            else:
-                start_1 = start_2 = 0
-                end_1 = end_2 = self.data_segment_length
-            traj_idx1, traj_idx2 = np.squeeze(traj_idx1), np.squeeze(traj_idx2)
-            batch = {
-                "obs_1": self.data["obs"][traj_idx1, start_1:end_1], 
-                "action_1": self.data["action"][traj_idx1, start_1:end_1],
-                "next_obs_1": self.data["next_obs"][traj_idx1, start_1:end_1],
-                "obs_2": self.data["obs"][traj_idx2, start_2:end_2],
-                "action_2": self.data["action"][traj_idx2, start_2:end_2],
-                "next_obs_2": self.data["next_obs"][traj_idx2, start_2:end_2],
-            }
-            init_distance_1 = self.distance_to_goal(batch["obs_1"][..., 0, :])
-            final_distance_1 = self.distance_to_goal(batch["next_obs_1"][..., -1, :])
-            init_distance_2 = self.distance_to_goal(batch["obs_2"][..., 0, :])
-            final_distance_2 = self.distance_to_goal(batch["next_obs_2"][..., -1, :])
-            return_1 = init_distance_1 - final_distance_1
-            return_2 = init_distance_2 - final_distance_2
+        if self.segment_length is not None:
+            start_1 = np.random.randint(0, self.traj_len[traj_idx1] - self.segment_length)
+            start_2 = np.random.randint(0, self.traj_len[traj_idx2] - self.segment_length)
+            end_1 = int(start_1 + self.segment_length)
+            end_2 = int(start_2 + self.segment_length)
+        else:
+            start_1 = start_2 = 0
+            end_1 = end_2 = self.data_segment_length
+        traj_idx1, traj_idx2 = np.squeeze(traj_idx1), np.squeeze(traj_idx2)
+        batch = {
+            "obs_1": self.data["obs"][traj_idx1, start_1:end_1], 
+            "action_1": self.data["action"][traj_idx1, start_1:end_1],
+            "next_obs_1": self.data["next_obs"][traj_idx1, start_1:end_1],
+            "obs_2": self.data["obs"][traj_idx2, start_2:end_2],
+            "action_2": self.data["action"][traj_idx2, start_2:end_2],
+            "next_obs_2": self.data["next_obs"][traj_idx2, start_2:end_2],
+        }
+        # init_distance_1 = self.distance_to_goal(batch["obs_1"][..., 0, :])
+        # final_distance_1 = self.distance_to_goal(batch["next_obs_1"][..., -1, :])
+        # init_distance_2 = self.distance_to_goal(batch["obs_2"][..., 0, :])
+        # final_distance_2 = self.distance_to_goal(batch["next_obs_2"][..., -1, :])
+        # return_1 = init_distance_1 - final_distance_1
+        # return_2 = init_distance_2 - final_distance_2
+        return_1 = self.optimal_agent.evaluate(batch["obs_1"], batch["action_1"])
+        return_2 = self.optimal_agent.evaluate(batch["obs_2"], batch["action_2"])
+        return_1, return_2 = return_1.sum(1), return_2.sum(1)
+        if noisy_label:
+            label = 1 / (1 + np.exp(0.5*(return_1 - return_2)))
+            batch["label"] = label.astype(np.float32)[:, None]
+        else:
             hard_label = 1.0 * (return_1 < return_2)
             soft_label = 0.5 * (return_1 == return_2)
             batch["label"] = (hard_label + soft_label).astype(np.float32)[:, None]
-            yield batch
+        return batch
+
+    def __iter__(self):
+        while True:
+            if self.mode == "sparse":
+                traj_idx1 = np.random.randint(self.data_size // 2, size=[self.batch_size, ])
+            else:
+                traj_idx1 = np.random.randint(self.data_size, size=[self.batch_size, ])
+            yield self.sample_idx(traj_idx1, noisy_label=self.noisy_label)
+
+    def create_sequential_iter(self):
+        assert self.mode == "sparse"
+        start, end = 0, min(self.batch_size, self.data_size // 2)
+        while start < self.data_size//2:
+            idxs = np.asarray(range(start, min(end, self.data_size//2)), dtype=np.int32)
+            yield self.sample_idx(idxs, noisy_label=False)
+            start += self.batch_size
+            end += self.batch_size
+            
 
 
 class FourRoomsOfflineDataset(torch.utils.data.IterableDataset):

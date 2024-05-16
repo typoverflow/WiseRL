@@ -5,12 +5,12 @@ algorithm:
   max_exp_clip: 100.0
   discount: 0.99
   tau: 0.005
-  seq_len: 20
-  future_len: 20
+  seq_len: 50
+  future_len: 10
   z_dim: 64 # [64, 128]
   prior_sample: 20 # [5, 10]
-  vae_steps: 20000 # tune
-  reward_steps: 50000
+  vae_steps: 50000 # tune
+  reward_steps: 200000
   kl_loss_coef: 2.0 # [0.5, 5.0]
   kl_balance_coef: 0.5
   reg_coef: 0.0
@@ -77,17 +77,19 @@ network:
 rm_dataset:
   - class: FourRoomsOfflineDataset
     batch_size: 128
-    path: datasets/fourrooms/eps0.3_num5000_len50.npz
-    segment_length: 20
+    path: datasets/fourrooms/greedy0.0_num5000_len50.npz
+    segment_length: 50
     # capacity: 5000
   - class: FourRoomsComparisonDataset
     batch_size: 8
-    path: datasets/fourrooms/random_num5000_len20.npz
+    path: datasets/fourrooms/random_num5000_len50.npz
+    mode: sparse
+    capacity: 1000
     # capacity: 500
   - class: FourRoomsOfflineDataset
     batch_size: 128
-    path: datasets/fourrooms/eps0.3_num5000_len50.npz
-    segment_length: 20
+    path: datasets/fourrooms/greedy0.0_num5000_len50.npz
+    segment_length: 50
     # capacity: 5000
 rm_dataloader:
   num_workers: 2
@@ -105,7 +107,7 @@ rl_dataloader:
 trainer:
   env_freq: null
   rm_label: false
-  rm_steps: 70000
+  rm_steps: 250000
   rl_steps: 0
   log_freq: 500
   profile_freq: 500
@@ -113,6 +115,12 @@ trainer:
 
 rm_eval:
   function: eval_fourrooms_rm
+  eval_dataset_kwargs:
+    class: FourRoomsComparisonDataset
+    batch_size: 32
+    path: datasets/fourrooms/random_num5000_len50.npz
+    capacity: 1000
+    mode: sparse
 rl_eval:
   function: eval_fourrooms_rl
   deterministic: true

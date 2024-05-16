@@ -47,7 +47,9 @@ network:
 rm_dataset:
   - class: FourRoomsComparisonDataset
     batch_size: 8
-    path: datasets/fourrooms/random_num5000_len20.npz
+    path: datasets/fourrooms/random_num5000_len50.npz
+    capacity: 1000
+    mode: sparse
 rm_dataloader:
   num_workers: 0
   batch_size: null
@@ -72,6 +74,12 @@ trainer:
 
 rm_eval:
   function: eval_fourrooms_rm
+  eval_dataset_kwargs:
+    class: FourRoomsComparisonDataset
+    batch_size: 32
+    path: datasets/fourrooms/random_num5000_len50.npz
+    capacity: 1000
+    mode: sparse
 rl_eval:
   function: eval_fourrooms_rl
   deterministic: true
