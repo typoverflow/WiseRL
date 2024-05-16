@@ -77,6 +77,7 @@ if __name__ == "__main__":
         index = args["index"] if "index" in args else 0
         start = args["start"] if "start" in args else 0
         traj_len = args["traj_len"] if "traj_len" in args else 5
+        alpha = args["alpha"] if "alpha" in args else 0.5
         N = args["N"] if "N" in args else 1000
         default_traj = next(iter(dataset))
         # default_traj = algorithm.format_batch(default_traj)
@@ -125,11 +126,27 @@ if __name__ == "__main__":
         z_logprob_all, _ = algorithm.network.future_proj.evaluate(out, z_posterior, return_logprob=True)
 
         z_logprob = z_logprob_all[:, 0, :].squeeze()
+        z_logprob = z_logprob.cpu().numpy()
+        tau_logprob = tau_logprob.cpu().numpy()
+        # 异常值处理
+        z_logprob = z_logprob[tau_logprob > -12]
+        tau_logprob = tau_logprob[tau_logprob > -12]
         
         # draw plot for z_logprob and tau_logprob, save to scripts/visualization/imgs/density.png
         plt.figure()
-        plt.scatter(z_logprob.cpu().numpy(), tau_logprob.cpu().numpy())
-        plt.xlabel("z_logprob")
-        plt.ylabel("tau_logprob")
-        plt.savefig("scripts/visualization/imgs/density.png")
+        plt.scatter(z_logprob, tau_logprob, alpha=alpha)
+        # plt.xlabel("z_logprob")
+        # plt.ylabel("tau_logprob")
+        # 关闭刻度
+        plt.xticks([])
+        plt.yticks([])
+        # 去除边框
+        plt.gca().spines['top'].set_visible(False)
+        plt.gca().spines['right'].set_visible(False)
+        plt.gca().spines['bottom'].set_visible(False)
+        plt.gca().spines['left'].set_visible(False)
+        # 收窄边距
+        plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
+        # 设置清晰度
+        plt.savefig("scripts/visualization/imgs/density.png", dpi=300)
         
