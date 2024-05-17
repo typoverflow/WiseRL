@@ -35,6 +35,63 @@ def eval_gambling_rm(
     # time.sleep(0.5)
     return {}
 
+@torch.no_grad()
+def eval_gambling_rm_hpl(
+    env: gym.Env,
+    algorithm: Algorithm, 
+):
+    test_data = {
+        "obs": np.asarray([0, 0, 1, 2, 3]), 
+        "action": np.asarray([0, 1, 2, 2, 2])
+    }
+    def convert_to_onehot(x, n):
+        onehot = np.eye(n)
+        x_onehot = onehot[x, :]
+        return x_onehot.astype(np.float32)
+    test_data = {
+        "obs": convert_to_onehot(test_data["obs"], 5), 
+        "action": convert_to_onehot(test_data["action"], 3)
+    }
+    test_data = algorithm.format_batch(test_data)
+    reward = algorithm.select_reward(test_data)
+    reward = reward.cpu().numpy().tolist()
+    print("reward: ", reward)
+    
+    # test the vae
+    test_data = {
+        "obs": np.asarray([
+            [0, 1], 
+            [0, 2], 
+            [0, 3]
+            ]),  
+        "action": np.asarray([
+            [0, 2], 
+            [0, 2], 
+            [1, 2], 
+            ]), 
+    }
+    test_data = {
+        "obs": convert_to_onehot(test_data["obs"], 5),
+        "action": convert_to_onehot(test_data["action"], 3)
+    }
+    test_data = algorithm.format_batch(test_data)
+    obs_action = torch.concat([test_data["obs"], test_data["action"]], dim=-1)
+    with torch.no_grad():
+        z_posterior, _, info = algorithm.network.future_proj.sample(
+            algorithm.network.future_encoder(
+                obs_action, 
+                timesteps=None, 
+                attention_mask=algorithm.future_attention_mask, 
+                do_embedding = True
+            )
+        )
+    reward = algorithm.network.reward(torch.concat([obs_action, z_posterior], dim=-1))
+    posterior_logprob = algorithm.network.prior.evaluate(obs_action, z_posterior)[0]
+    print("posterior reward: ", reward.cpu().numpy().tolist())
+    print("posterior logprob: ", posterior_logprob.cpu().numpy().tolist())
+    
+    return {}
+
     
 
 @torch.no_grad()

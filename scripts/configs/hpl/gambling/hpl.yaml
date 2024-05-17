@@ -8,12 +8,12 @@ algorithm:
   seq_len: 2
   future_len: 1
   z_dim: 8 # [64, 128]
-  prior_sample: 5 # [5, 10]
+  prior_sample: 50 # [5, 10]
   vae_steps: 3000 # tune
   reward_steps: 2000
-  kl_loss_coef: 2.0 # [0.5, 5.0]
+  kl_loss_coef: 0.05 # [0.5, 5.0]
   kl_balance_coef: 0.5
-  reg_coef: 0.0
+  reg_coef: 0.5
   rm_label: false
 
 checkpoint: null
@@ -41,7 +41,7 @@ network:
     embed_dim: 64
     num_layers: 2
     num_heads: 2
-    dropout: 0.1
+    dropout: 0.0
   decoder:
     embed_dim: 16
     hidden_dims: [64, 64] # shallower?
@@ -107,7 +107,7 @@ trainer:
   eval_freq: 5000   # don't do eval
 
 rm_eval:
-  function: eval_gambling_rm
+  function: eval_gambling_rm_hpl
 rl_eval:
   function: eval_fourrooms_rl
   deterministic: true

@@ -380,6 +380,8 @@ class HindsightPreferenceLearning(Algorithm):
             "loss/kl_loss": kl_loss.item(),
             "loss/prior_kl_loss": prior_kl_loss.item(),
             "loss/post_kl_loss": post_kl_loss.item(),
+            "info/prior_logstd": z_prior_logstd.mean().item(),
+            "info/post_logstd": z_logstd.mean().item(),
         }
 
     def load_pretrain(self, path):
