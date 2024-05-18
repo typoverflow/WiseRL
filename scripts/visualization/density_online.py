@@ -135,18 +135,18 @@ if __name__ == "__main__":
         # draw plot for z_logprob and tau_logprob, save to scripts/visualization/imgs/density.png
         plt.figure()
         plt.scatter(z_logprob, tau_logprob, alpha=alpha)
-        # plt.xlabel("z_logprob")
-        # plt.ylabel("tau_logprob")
+        plt.xlabel(r"$\log P(z)$")
+        plt.ylabel(r"$\log P(\tau)$")
         # 关闭刻度
         plt.xticks([])
         plt.yticks([])
         # 去除边框
-        plt.gca().spines['top'].set_visible(False)
-        plt.gca().spines['right'].set_visible(False)
-        plt.gca().spines['bottom'].set_visible(False)
-        plt.gca().spines['left'].set_visible(False)
+        # plt.gca().spines['top'].set_visible(False)
+        # plt.gca().spines['right'].set_visible(False)
+        # plt.gca().spines['bottom'].set_visible(False)
+        # plt.gca().spines['left'].set_visible(False)
         # 收窄边距
         plt.subplots_adjust(left=0.1, right=0.9, top=0.9, bottom=0.1)
         # 设置清晰度
-        plt.savefig("scripts/visualization/imgs/density.png", dpi=300)
+        plt.savefig("scripts/visualization/imgs/density.pdf")
         

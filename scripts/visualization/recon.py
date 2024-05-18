@@ -97,8 +97,9 @@ if __name__ == "__main__":
             img = Image.fromarray(img)
             img.save(f"scripts/visualization/imgs/pred_{i}.png")
 
-    gt_imgs = [cv2.imread(f'scripts/visualization/imgs/gt_{i}.png') for i in range(100)][::15]
-    pred_imgs = [cv2.imread(f'scripts/visualization/imgs/pred_{i}.png') for i in range(100)][::15]
+    gt_imgs = [cv2.imread(f'scripts/visualization/imgs/gt_{i}.png') for i in range(100)][::20]
+    pred_imgs = [cv2.imread(f'scripts/visualization/imgs/pred_{i}.png') for i in range(100)][::20]
+    print(list(range(0, 100, 20)))
 
     # 横着排列
     compare_imgs = np.concatenate([np.concatenate(gt_imgs, axis=1), np.concatenate(pred_imgs, axis=1)], axis=0)

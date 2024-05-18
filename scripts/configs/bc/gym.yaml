@@ -11,7 +11,7 @@ wandb:
   entity: null
   project: null
 
-env: hopper-medium-expert-v2
+env: hopper-medium-replay-v2
 env_kwargs:
 env_wrapper:
 env_wrapper_kwargs:
@@ -32,7 +32,7 @@ network:
 
 dataset:
   - class: D4RLOfflineDataset
-    env: hopper-medium-expert-v2
+    env: hopper-medium-replay-v2
     batch_size: 256
     mode: transition
     reward_normalize: true

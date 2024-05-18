@@ -6,7 +6,7 @@ algorithm:
   discount: 0.99
   tau: 0.005
   seq_len: 24
-  future_len: 5
+  future_len: 24
   z_dim: 128 # [64, 128]
   prior_sample: 20 # [5, 10]
   vae_steps: 250000
