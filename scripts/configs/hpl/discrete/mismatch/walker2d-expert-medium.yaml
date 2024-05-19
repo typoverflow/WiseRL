@@ -16,7 +16,7 @@ algorithm:
   reg_coef: 0.0
   discrete: true
   discrete_group: 8
-  stoc_encoding: false
+  stoc_encoding: true
   rm_label: true
 
 checkpoint: null
