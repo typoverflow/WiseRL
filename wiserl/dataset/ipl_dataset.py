@@ -11,6 +11,10 @@ from wiserl.utils import utils
 
 prefix = "datasets/ipl/"
 DATASET_PATH={
+    "antmaze-large-diverse-v2": f"{prefix}/preference_transformer/antmaze-large-diverse-v2/num1000",
+    "antmaze-large-play-v2": f"{prefix}/preference_transformer/antmaze-large-play-v2/num1000",
+    "antmaze-medium-diverse-v2": f"{prefix}/preference_transformer/antmaze-medium-diverse-v2/num1000",
+    "antmaze-medium-play-v2": f"{prefix}/preference_transformer/antmaze-medium-play-v2/num1000",
     "hopper-medium-replay-v2": f"{prefix}/preference_transformer/hopper-medium-replay-v2/num500",
     "hopper-medium-expert-v2": f"{prefix}/preference_transformer/hopper-medium-expert-v2/num100",
     "walker2d-medium-replay-v2": f"{prefix}/preference_transformer/walker2d-medium-replay-v2/num500",
