@@ -1,19 +1,22 @@
 algorithm:
   class: HindsightPreferenceLearning
-  expectile: 0.7
+  expectile: 0.75
   beta: 0.3333
   max_exp_clip: 100.0
   discount: 0.99
   tau: 0.005
-  seq_len: 100
+  seq_len: 24
   future_len: 5
   z_dim: 128 # [64, 128]
   prior_sample: 20 # [5, 10]
-  vae_steps: 250000 # tune
+  vae_steps: 250000
   reward_steps: 100000
-  kl_loss_coef: 2.0 # [0.5, 5.0]
-  kl_balance_coef: 0.5
+  kl_loss_coef: 0.1 # [0.5, 5.0]
+  kl_balance_coef: 0.8
   reg_coef: 0.0001
+  discrete: true
+  discrete_group: 8
+  stoc_encoding: true
   rm_label: true
 
 checkpoint: null
@@ -26,7 +29,7 @@ wandb:
   entity: null
   project: null
 
-env: hopper-medium-expert-v2
+env: button-press-v2
 env_kwargs:
 env_wrapper:
 env_wrapper_kwargs:
@@ -44,10 +47,10 @@ network:
     dropout: 0.1
   decoder:
     embed_dim: 64
-    hidden_dims: [256, 256] # shallower?
+    hidden_dims: [512, 512] # shallower?
     ortho_init: true
   prior:
-    hidden_dims: [256, 256]
+    hidden_dims: [512, 512]
     ortho_init: true
   reward:
     class: Critic
@@ -75,29 +78,28 @@ network:
 
 
 rm_dataset:
-  - class: D4RLOfflineDataset
-    env: hopper-medium-expert-v2
-    batch_size: 64 # [64, 128]
-    mode: trajectory
-    segment_length: 100
-    padding_mode: none
-  - class: IPLComparisonOfflineDataset
-    env: hopper-medium-expert-v2
-    batch_size: 8
-    mode: human
-  - class: D4RLOfflineDataset
-    env: hopper-medium-expert-v2
-    batch_size: 512
-    mode: transition
+  - class: MetaworldOfflineDataset
+    env: button-press-v2
+    batch_size: 16 # [64, 128]
+    capacity: 5000
+  - class: MetaworldComparisonDataset
+    env: button-press-v2
+    batch_size: 16
+    capacity: 500
+    segment_length: 24
+  - class: MetaworldOfflineDataset
+    env: button-press-v2
+    batch_size: 16 # [64, 128]
+    capacity: 5000
 rm_dataloader:
   num_workers: 2
   batch_size: null
 
 rl_dataset:
-  - class: D4RLOfflineDataset
-    env: hopper-medium-expert-v2
-    batch_size: 512
-    mode: transition
+  - class: MetaworldOfflineDataset
+    env: button-press-v2
+    batch_size: 16
+    capacity: 5000
 rl_dataloader:
   num_workers: 2
   batch_size: null
@@ -105,23 +107,23 @@ rl_dataloader:
 trainer:
   env_freq: null
   rm_label: true
-  rm_steps: 300000
-  rl_steps: 1000000
+  rm_steps: 350000
+  rl_steps: 500000
   log_freq: 500
   profile_freq: 500
-  eval_freq: 5000   # don't do eval
+  eval_freq: 10000
 
 rm_eval:
   function: eval_reward_model
   eval_dataset_kwargs:
-    class: IPLComparisonOfflineDataset
-    env: hopper-medium-expert-v2
+    class: MetaworldComparisonDataset
+    env: button-press-v2
     batch_size: 32
-    mode: human
-    eval: false
+    segment_length: 24
+    capacity: 500
 rl_eval:
   function: eval_offline
-  num_ep: 10
+  num_ep: 20
   deterministic: true
 
 schedulers:
