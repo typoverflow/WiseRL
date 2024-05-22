@@ -2,6 +2,7 @@ import argparse
 import functools
 import os
 import shutil
+from click import style
 import numpy as np
 import torch
 from PIL import Image
@@ -135,11 +136,57 @@ if __name__ == "__main__":
         # draw plot for z_logprob and tau_logprob, save to scripts/visualization/imgs/density.png
         plt.figure()
         plt.scatter(z_logprob, tau_logprob, alpha=alpha)
-        plt.xlabel(r"$\log P(z)$")
-        plt.ylabel(r"$\log P(\tau)$")
+        # 设置字体大小为原来 1.5 倍
+        plt.xlabel(r"$\log p(z_t|s_t, a_t)$", fontsize=15)
+        plt.ylabel(r"$\log p(\sigma_{t:t+k}|s_t, a_t)$", fontsize=15)
         # 关闭刻度
         plt.xticks([])
         plt.yticks([])
+        # 进行 pca 降维算出斜率
+        from sklearn.decomposition import PCA
+        
+        # 使用 PCA 进行主成分分析
+        pca = PCA(n_components=2)
+        X = np.array([z_logprob, tau_logprob]).T
+        pca.fit(X)
+        components = pca.components_
+        mean = pca.mean_
+
+        # 计算长轴（第一主成分）的斜率
+        vector = components[0]
+        slope = vector[1] / vector[0] * 0.3
+
+        print(f'长轴（第一主成分）的斜率: {slope}')
+
+        # 绘制数据点
+        # plt.scatter(X[:, 0], X[:, 1], alpha=0.2, label='数据点')
+
+        # 绘制长轴对角线
+        x_vals = np.array([100, 110])
+        y_vals = mean[1] + slope * (x_vals - mean[0])
+        plt.plot(x_vals, y_vals, color="#909090", linestyle='--', lw=2)
+        
+        # 将线上移 5 个单位，然后画出来
+        y_vals_up = mean[1] + slope * (x_vals - mean[0]) + 5
+        x_vals_up = x_vals
+        # 截断大于 6 的部分
+        # x_vals_up = x_vals[y_vals_up < 6]
+        # y_vals_up = y_vals_up[y_vals_up < 6]
+        plt.plot(x_vals_up, y_vals_up, color="#909090", linestyle='--', lw=2)
+        
+        # 将线下移 8 个单位，然后画出来
+        y_vals_down = mean[1] + slope * (x_vals - mean[0]) - 8.5
+        x_vals_down = x_vals
+        # 截断小于 -12.5 的部分
+        # x_vals_down = x_vals[y_vals_down > -12.5]
+        # y_vals_down = y_vals_down[y_vals_down > -12.5]
+        plt.plot(x_vals_down, y_vals_down, color="#909090", linestyle='--', lw=2)
+        
+        # 限定 y 轴范围
+        plt.ylim(-12.5, 6)
+        # 限定 x 轴范围
+        plt.xlim(106.5, 107.8)
+        
         # 去除边框
         # plt.gca().spines['top'].set_visible(False)
         # plt.gca().spines['right'].set_visible(False)
