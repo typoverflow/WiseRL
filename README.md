@@ -1,23 +1,10 @@
-<p align="center">
+# Hindsight Preference Learning for Offline Preference-based Reinforcement Learning
 
-<img src="assets/banner.png">
+## Installation
 
-</p>
-
-> 🚧 This repo is subject to major API changes 🚧
-
-WiseRL provides unofficial and banchmarked PyTorch implementations for Offline Preference-Based RL algorithms, including:
-- Oracle-IQL & Oracle AWAC
-- Supervised Finetuning (SFT)
-- Bradley-Terry Model + IQL/AWAC (BT-IQL/AWAC)
-- Contrastive Prefereing Learning (CPL)
-- Inverse Preference Learning + IQL/AWAC (IPL-IQL/AWAC)
-- Preference Transformer + IQL (PT-IQL)
-
-# Installation
 + clone this repo and install the dependencies
   ```bash
-  git clone git@github.com:typoverflow/WiseRL
+  git clone https://github.com/typoverflow/WiseRL.git
   cd WiseRL && pip install -e .
   ```
 + install environment or dataset dependencies
@@ -29,35 +16,40 @@ WiseRL provides unofficial and banchmarked PyTorch implementations for Offline P
     ```
   + for metaworld experiments:
     ```bash
-    git clone git@github.com:Farama-Foundation/Metaworld
+    git clone https://github.com/Farama-Foundation/Metaworld.git
     cd Metaworld && git checkout 04be337a
     pip install -e .
     ```
-  + for robosuite experiments (we follow the instructions from [IPL](https://github.com/jhejna/inverse-preference-learning?tab=readme-ov-file)):
-    + Git clone the robosuite repository, checkout to `offline_study` branch and install.
-      ```bash
-      git clone https://github.com/ARISE-Initiative/robosuite
-      cd robosuite && git checkout offline_study
-      pip install -e . --no-dependencies
-      ```
-      Nota that if you are using python 3.10 or higher, you need to change `from collections import Iterable` to `from collections.abc import Iterable` in file `robosuite/models/arenas/multi_table_arena.py`.
-    + Run `import robosuite` repeatedly until it completes. Install the missing packages if any error shows up.
-    + Git clone the robomimic repository.
-      ```bash
-      git clone git@github.com:ARISE-Initiative/robomimic.git
-      cd robomimic && git checkout v0.2.0
-      ```
-    + Download the robomimic dataset
-      ```bash
-      mkdir -p ~/.robomimic/datasets/
-      cd robomimic/scripts/
-      python download_datasets.py --tasks sim --dataset_types ph --hdf5_types low_dim --download_dir ~/.robomimic/datasets/
-      python download_datasets.py --tasks sim --dataset_types mh --hdf5_types low_dim --download_dir ~/.robomimic/datasets/
-      ```
-    + Checkout back to the master branch and install. **Note that you must first checkout to v0.2.0 branch to download the dataset, and come back to install the latest version of code.**
-      ```bash
-      git checkout master
-      pip install -e . --no-dependencies
-      ```
-    + Run `import robomimic` repeatedly until it completes. Install the missing packages if any error shows up.
-    + Note that the above installation scripts will download the datasets to `~/.robosuite/datasets`. If you would like to change to other locations, please make sure to change the macro in Robomimic Dataset accordingly.
++ download datasets
+  + clone [IPL repo with MIT license](https://github.com/jhejna/inverse-preference-learning?tab=readme-ov-file)
+    ```bash
+    git clone https://github.com/jhejna/inverse-preference-learning.git
+    ```
+  + copy the `inverse-preference-learning/datasets/` directory of IPL repo into `WiseRL/datasets/` directory of HPL repo
+
+
+## Usage
+
+### Gym-Mujoco
+
+Modify the configuration file `scripts/configs/hpl/gym.yaml` and run
+
+```bash
+python3 scripts/rmb_main.py --config scripts/configs/hpl/gym.yaml
+```
+
+### Adroit
+
+Modify the configuration file `scripts/configs/hpl/adroit.yaml` and run
+
+```bash
+python3 scripts/rmb_main.py --config scripts/configs/hpl/adroit.yaml
+```
+
+### Metaworld
+
+Modify the configuration file `scripts/configs/hpl/metaworld.yaml` and run
+
+```bash
+python3 scripts/rmb_main.py --config scripts/configs/hpl/metaworld.yaml
+```
