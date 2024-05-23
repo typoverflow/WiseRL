@@ -1,0 +1,132 @@
+algorithm:
+  class: HindsightPreferenceLearning
+  expectile: 0.7
+  beta: 0.3333
+  max_exp_clip: 100.0
+  discount: 0.99
+  tau: 0.005
+  seq_len: 100
+  future_len: 5
+  z_dim: 128 # [64, 128]
+  prior_sample: 20 # [5, 10]
+  vae_steps: 250000 # tune
+  reward_steps: 100000
+  kl_loss_coef: 0.1 # [0.5, 5.0]
+  kl_balance_coef: 0.8
+  reg_coef: 0.0001
+  discrete: true
+  discrete_group: 8
+  stoc_encoding: true
+  rm_label: true
+
+checkpoint: null
+seed: 0
+name: default
+debug: false
+device: null
+wandb:
+  activate: false
+  entity: null
+  project: null
+
+env: hopper-medium-expert-v2
+env_kwargs:
+env_wrapper:
+env_wrapper_kwargs:
+
+optim:
+  default:
+    class: Adam
+    lr: 0.0003
+
+network:
+  encoder:
+    embed_dim: 128
+    num_layers: 3
+    num_heads: 4
+    dropout: 0.1
+  decoder:
+    embed_dim: 128
+    hidden_dims: [256, 256, 256] # shallower?
+    ortho_init: true
+  prior:
+    hidden_dims: [256, 256]
+    ortho_init: true
+  reward:
+    class: Critic
+    hidden_dims: [256, 256, 256] # tune
+    ortho_init: true
+    reward_act: sigmoid
+  actor:
+    class: SquashedGaussianActor
+    hidden_dims: [256, 256, 256]
+    reparameterize: false
+    conditioned_logstd: true
+    logstd_min: -7
+    logstd_max: 2
+    ortho_init: true
+  critic:
+    class: Critic
+    ensemble_size: 2
+    hidden_dims: [256, 256, 256]
+    ortho_init: true
+  value:
+    class: Critic
+    ensemble_size: 1
+    hidden_dims: [256, 256, 256]
+    ortho_init: true
+
+
+rm_dataset:
+  - class: D4RLOfflineDataset
+    env: hopper-medium-expert-v2
+    batch_size: 64 # [64, 128]
+    mode: trajectory
+    segment_length: 100
+    padding_mode: none
+  - class: IPLComparisonOfflineDataset
+    env: hopper-medium-replay-v2
+    batch_size: 8
+    mode: human
+  - class: D4RLOfflineDataset
+    env: hopper-medium-expert-v2
+    batch_size: 512
+    mode: transition
+rm_dataloader:
+  num_workers: 2
+  batch_size: null
+
+rl_dataset:
+  - class: D4RLOfflineDataset
+    env: hopper-medium-expert-v2
+    batch_size: 512
+    mode: transition
+rl_dataloader:
+  num_workers: 2
+  batch_size: null
+
+trainer:
+  env_freq: null
+  rm_label: true
+  rm_steps: 350000
+  rl_steps: 500000
+  log_freq: 500
+  profile_freq: 500
+  eval_freq: 5000   # don't do eval
+
+rm_eval:
+  function: eval_reward_model
+  eval_dataset_kwargs:
+    class: IPLComparisonOfflineDataset
+    env: hopper-medium-replay-v2
+    batch_size: 32
+    mode: human
+    eval: false
+rl_eval:
+  function: eval_offline
+  num_ep: 10
+  deterministic: true
+
+schedulers:
+
+processor: null

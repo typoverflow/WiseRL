@@ -9,14 +9,17 @@ from wiserl.utils.functional import discounted_cum_sum
 
 
 def pad_along_axis(
-    arr: np.ndarray, pad_to: int, axis: int = 0, fill_value: float = 0.0
+    arr: np.ndarray, pad_to: int, axis: int = 0, fill_value: float = 0.0, direction="right"
 ) -> np.ndarray:
     pad_size = pad_to - arr.shape[axis]
     if pad_size <= 0:
         return arr
 
     npad = [(0, 0)] * arr.ndim
-    npad[axis] = (0, pad_size)
+    if direction == "right":
+        npad[axis] = (0, pad_size)
+    else:
+        npad[axis] = (pad_size, 0)
     return np.pad(arr, pad_width=npad, mode="constant", constant_values=fill_value)
 
 class D4RLOfflineDataset(torch.utils.data.IterableDataset):
@@ -29,17 +32,20 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
         batch_size: Optional[int] = None,
         capacity: Optional[int] = None,
         mode: str="transition",
+        padding_mode: str="right",
         reward_scale: Optional[float] = None,
         reward_shift: Optional[float] = None,
         reward_normalize: bool = False,
     ):
         super().__init__()
-        assert mode in {"transition", "trajectory"}, "Supported mode for D4RLOfflineDataset: \{transition, trajectory\}."
+        assert mode in {"transition", "trajectory"}, "Supported mode for D4RLOfflineDataset: {transition, trajectory}."
+        assert padding_mode in {"left", "right", "none", "Supported padding mode for D4RLOfflineDataset: {left, right, none}."}
         assert reward_scale is None == reward_shift is None, "reward_scale and reward_shift should be set simultaneously."
         assert not reward_normalize or reward_shift is None, "reward scale & shift and reward normalize can not be set simultaneously."
 
         self.env_name = env
         self.mode = mode
+        self.padding_mode = padding_mode
         self.batch_size = 1 if batch_size is None else batch_size
         self.segment_length = segment_length
         self.capacity = capacity
@@ -69,10 +75,29 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
             else :
                 sample = []
                 for _ in range(self.batch_size):
-                    traj_idx = np.random.choice(self.data_size, p=self.sample_prob)
-                    start_idx = np.random.choice(self.traj_len[traj_idx])
-                    s = {k: v[traj_idx, start_idx:start_idx+self.segment_length] for k, v in self.data.items()}
-                    s["timestep"] = np.arange(start_idx, start_idx+self.segment_length)
+                    if self.padding_mode == "right":
+                        traj_idx = np.random.choice(self.data_size, p=self.sample_prob)
+                        start_idx = np.random.choice(self.traj_len[traj_idx])
+                        s = {
+                            k: pad_along_axis(v[traj_idx, start_idx:min(start_idx+self.segment_length, self.traj_len[traj_idx])], pad_to=self.segment_length) for k, v in self.data.items()
+                        }
+                        s["timestep"] = np.arange(start_idx, start_idx+self.segment_length)
+                    elif self.padding_mode == "left":
+                        traj_idx = np.random.choice(self.data_size, p=self.sample_prob)
+                        end_idx = np.random.choice(self.traj_len[traj_idx])+1
+                        s = {
+                            k: pad_along_axis(v[traj_idx, max(0, end_idx-self.segment_length):end_idx], pad_to=self.segment_length, direction="left") for k, v in self.data.items()
+                        }
+                        s["timestep"] = np.maximum(np.arange(self.segment_length)+1-self.segment_length+end_idx, 0)
+                    elif self.padding_mode == "none":
+                        traj_idx = np.random.choice(self.data_size, p=self.sample_prob)
+                        while self.traj_len[traj_idx] < self.segment_length:
+                            traj_idx = np.random.choice(self.data_size, p=self.sample_prob)
+                        start_idx = np.random.choice(self.traj_len[traj_idx]-self.segment_length+1)
+                        s = {
+                            k: v[traj_idx, start_idx:start_idx+self.segment_length] for k, v in self.data.items()
+                        }
+                        s["timestep"] = np.arange(start_idx, start_idx+self.segment_length)
                     sample.append(s)
                 if len(sample) == 1: yield sample[0]
                 else:
@@ -142,7 +167,8 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
             "next_obs": np.asarray(next_obs_),
             "reward": np.asarray(reward_)[..., None],
             "terminal": np.asarray(terminal_)[..., None],
-            "mask": np.ones([len(obs_), 1], dtype=np.float32)
+            "mask": np.ones([len(obs_), 1], dtype=np.float32),
+            "end": np.asarray(end_)[..., None],
         }
 
         if self.reward_normalize:
@@ -187,7 +213,7 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
                 self.segment_length = self.max_len
                 self.sample_full = True
             else:
-                self.max_len = self.traj_len.max() + self.segment_length - 1
+                self.max_len = self.traj_len.max()
                 self.sample_prob = self.traj_len / self.traj_len.sum()
                 self.sample_full = False
 
@@ -204,3 +230,47 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
                 "mask": np.asarray([t["mask"] for t in traj]),
             }
         del env
+
+    @torch.no_grad()
+    def relabel_reward(self, agent):
+        assert hasattr(agent, "select_reward"), f"Agent {agent} must support relabel_reward!"
+        bs = 256
+        for i_batch in range((self.data_size-1) // bs + 1):
+            idx = np.arange(i_batch*bs, min((i_batch+1)*bs, self.data_size))
+            batch = {
+                "obs": self.data["obs"][idx],
+                "action": self.data["action"][idx],
+                "next_obs": self.data["next_obs"][idx],
+                "mask": self.data["mask"][idx]
+            }
+            batch = agent.format_batch(batch)
+            reward = agent.select_reward(batch).detach().cpu().numpy()
+            reward = reward * self.data["mask"][idx]
+            self.data["reward"][idx] = reward
+
+        if self.mode == "trajectory":
+            # CHECK: may be bug. the max and min returns are not consistent with those computed in transition mode
+            return_ = self.data["reward"].copy()
+            for t in reversed(range(return_.shape[1]-1)):
+                return_[:, t] += return_[:, t+1]
+            self.data["return"] = return_
+            # normalization
+            prev_return_min, prev_return_max = return_[:, 0].min(), return_[:, 0].max()
+            max_return = max(abs(return_[:, 0].max()), abs(return_[:, 0].min()), return_[:, 0].max()-return_[:, 0].min(), 1.0)
+            norm = 1000. / max_return
+            self.data["reward"] *= norm
+            self.data["return"] *= norm
+            print(f"[D4RLOfflineDataset]: return range: [{prev_return_min}, {prev_return_max}], multiplying norm factor {norm}.")
+        elif self.mode == "transition":
+            ep_reward_ = []
+            episode_reward = 0
+            N = self.data["reward"].shape[0]
+            for i in range(N):
+                episode_reward += self.data["reward"][i]
+                if self.data["end"][i]:
+                    ep_reward_.append(episode_reward)
+                    episode_reward = 0
+            max_return = max(abs(min(ep_reward_)).item(), abs(max(ep_reward_)).item(), (max(ep_reward_)-min(ep_reward_)).item(), 1.0)
+            norm = 1000 / max_return
+            self.data["reward"] *= norm
+            print(f"[D4RLOfflineDataset]: return range: [{min(ep_reward_)}, {max(ep_reward_)}], multiplying norm factor {norm}.")

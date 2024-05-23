@@ -1,0 +1,92 @@
+algorithm:
+  class: BTIQL
+  beta: 0.3333
+  expectile: 0.7
+  max_exp_clip: 100.0
+  reward_reg: 0.0
+  rm_label: true
+
+checkpoint: null
+seed: 0
+name: default
+debug: false
+device: null
+wandb:
+  activate: false
+  entity: null
+  project: null
+
+env: CliffWalkingEnv
+env_kwargs:
+env_wrapper:
+env_wrapper_kwargs:
+
+optim:
+  default:
+    class: Adam
+    lr: 0.0003
+
+network:
+  reward:
+    class: EnsembleMLP
+    ensemble_size: 1
+    hidden_dims: [256, 256]
+    reward_act: identity
+  actor:
+    class: SquashedGaussianActor
+    hidden_dims: [256, 256]
+    reparameterize: false
+    conditioned_logstd: false
+    logstd_min: -5
+    logstd_max: 2
+  critic:
+    class: Critic
+    ensemble_size: 2
+    hidden_dims: [256, 256]
+  value:
+    class: Critic
+    ensemble_size: 1
+    hidden_dims: [256, 256]
+
+rm_dataset:
+  - class: CliffWalkingComparisonDataset
+    batch_size: 8
+    path: datasets/cliff/pref/eps_optimal_0.5-num300.npz
+rm_dataloader:
+  num_workers: 0
+  batch_size: null
+
+rl_dataset:
+  - class: CliffWalkingOfflineDataset
+    batch_size: 256
+    mode: transition
+rl_dataloader:
+  num_workers: 0
+  batch_size: null
+
+trainer:
+  env_freq: null
+  rm_label: true
+  rm_steps: 50000
+  rl_steps: 1000000
+  log_freq: 500
+  profile_freq: 500
+  eval_freq: 5000
+
+rm_eval:
+  function: eval_cliffwalking_rm
+  eval_dataset_kwargs:
+    class: CliffWalkingComparisonDataset
+    batch_size: 32
+    path: datasets/cliff/pref/eps_optimal_0.5-num300.npz
+rl_eval:
+  function: eval_offline
+  num_ep: 10
+  deterministic: true
+
+schedulers:
+  actor:
+    class: CosineAnnealingLR
+    T_max: 1000000
+
+processor: null

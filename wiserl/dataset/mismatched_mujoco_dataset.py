@@ -48,7 +48,7 @@ class MismatchedDataset(torch.utils.data.IterableDataset):
             indices = np.squeeze(loaded_data["masks"], axis=-1).astype(np.bool_)
             data = {
                 k: v[indices] for k, v in loaded_data.items() if k in {
-                    "observations", "actions", "next_observations", "rewards", "terminals"
+                    "obs", "action", "next_obs", "reward", "terminal"
                 }
             }
             self.data_size = int(loaded_data["masks"].sum())

@@ -1,6 +1,6 @@
 import collections
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence
 
 import gym
 import imageio
