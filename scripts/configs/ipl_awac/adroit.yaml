@@ -4,7 +4,6 @@ algorithm:
   reward_reg: 0.5
   reg_replay_weight: 0.5
   actor_replay_weight: 0.5
-  value_replay_weight: 0.5
   tau: 0.005
   max_exp_clip: 100.0
   discount: 0.99
