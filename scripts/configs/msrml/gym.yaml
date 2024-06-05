@@ -1,0 +1,65 @@
+algorithm:
+  class: MultiSpatialRewardModelLearning
+  num_preference: 5
+  preference_dimension: 64
+
+checkpoint: null
+seed: 0
+name: default
+debug: false
+device: null
+wandb:
+  activate: false
+  entity: null
+  project: null
+
+env: hopper-medium-expert-v2
+env_kwargs:
+env_wrapper:
+env_wrapper_kwargs:
+
+optim:
+  default:
+    class: Adam
+    lr: 0.0003
+
+network:
+
+
+rm_dataset:
+  - class: D4RLOfflineDataset
+    env: hopper-medium-replay-v2
+    batch_size: 2048 # [64, 128]
+    mode: trajectory
+    padding_mode: none
+
+rm_dataloader:
+  num_workers: 2
+  batch_size: null
+
+rl_dataset:
+  - class: D4RLOfflineDataset
+    env: hopper-medium-replay-v2
+    batch_size: 512
+    mode: transition
+
+rl_dataloader:
+  num_workers: 2
+  batch_size: null
+
+trainer:
+  env_freq: null
+  rm_label: true
+  rm_steps: 5
+  rl_steps: 1000000
+  log_freq: 500
+  profile_freq: 500
+  eval_freq: 5000   # don't do eval
+
+rm_eval:
+
+rl_eval:
+
+schedulers:
+
+processor: null

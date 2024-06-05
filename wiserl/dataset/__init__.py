@@ -15,7 +15,7 @@ from wiserl.dataset.mismatched_mujoco_dataset import (
     MismatchedComparisonDataset,
     MismatchedOfflineDataset,
 )
-
+from wiserl.dataset.oppo_dataset import OPPODataset
 from .replay_buffer import ReplayBuffer
 
 try:

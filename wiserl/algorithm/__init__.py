@@ -10,3 +10,5 @@ from wiserl.algorithm.oracle_awac import OracleAWAC
 from wiserl.algorithm.oracle_iql import OracleIQL
 from wiserl.algorithm.pt.pt_iql import PTIQL
 from wiserl.algorithm.sft import SFT
+from wiserl.algorithm.msrml import MultiSpatialRewardModelLearning
+from wiserl.algorithm.oppo import OPPO

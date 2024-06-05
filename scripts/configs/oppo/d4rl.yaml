@@ -1,0 +1,77 @@
+algorithm:
+  class: OPPO
+  z_dim: 8
+  seq_len: 20
+  pref_loss_ratio: 0.1
+  znorm_loss_ratio: 0.1
+
+checkpoint: null
+seed: 0
+name: default
+debug: false
+device: null
+wandb:
+  activate: false
+  entity: null
+  project: null
+
+env: hopper-medium-expert-v2
+env_kwargs:
+env_wrapper:
+env_wrapper_kwargs:
+
+optim:
+  default:
+    class: AdamW
+    lr: 0.0001
+  policy:
+    class: AdamW
+    lr: 0.0001
+    weight_decay: 0.0001
+  encoder:
+    class: AdamW
+    lr: 0.0001
+    weight_decay: 0.0001
+  zstar:
+    class: AdamW
+    lr: 0.001
+    weight_decay: 0.0001
+
+
+network:
+  encoder:
+    embed_dim: 128
+    num_layers: 3
+    num_heads: 4
+    dropout: 0.1
+  policy:
+    class: Critic
+    ensemble_size: 2
+    hidden_dims: [256, 256]
+
+dataset:
+  - class: D4RLOfflineDataset
+    env: hopper-medium-replay-v2
+    batch_size: 256 # [64, 128]
+    mode: trajectory
+    padding_mode: none
+
+dataloader:
+  num_workers: 0
+  batch_size: null
+
+trainer:
+  env_freq: null
+  total_steps: 0
+  log_freq: 500
+  profile_freq: 500
+  eval_freq: 5000   # don't do eval
+
+eval:
+  function: eval_offline_with_history_input
+  num_ep: 10
+  deterministic: true
+
+schedulers:
+
+processor: null

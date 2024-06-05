@@ -95,3 +95,39 @@ def eval_offline(
         if hasattr(env, "get_normalized_score"):
             metric_tracker.add("score", env.get_normalized_score(ep_reward))
     return metric_tracker.export()
+
+@torch.no_grad()
+def eval_offline_with_history_input(
+    env: gym.Env,
+    algorithm: Algorithm,
+    num_ep: int=10,
+    terminate_on_success: bool=False,
+    deterministic: bool=True
+):
+    metric_tracker = EvalMetricTracker()
+    for i_ep in range(num_ep):
+        ep_length, ep_reward = 0, 0
+        obs, done = env.reset(), False
+        history = {
+            'obs': np.expand_dims(obs,0),
+            'action':np.zeros([1,algorithm.action_dim]),
+            'timestep':np.array([0], dtype=np.int32),
+        }
+        metric_tracker.reset()
+        while not done:
+            action = algorithm.predict(history.copy(), deterministic=deterministic)
+            next_obs, reward, done, info = env.step(action)
+            metric_tracker.step(reward, info)
+            ep_reward += reward
+            ep_length += 1
+            
+            if terminate_on_success and (info.get("success", False) or info.get("is_success", False)):
+                done = True
+            
+            history['obs'] = np.concatenate((history['obs'],np.expand_dims(next_obs,0)), axis=0)
+            history['action'] = np.concatenate((history['action'][:-1],np.expand_dims(action,0), history['action'][-1:]), axis=0)
+            history['timestep'] = np.concatenate((history['timestep'],np.array([ep_length],dtype=np.int32)), axis=0)
+            
+        if hasattr(env, "get_normalized_score"):
+            metric_tracker.add("score", env.get_normalized_score(ep_reward))
+    return metric_tracker.export()

@@ -25,7 +25,7 @@ class GPTBlock(nn.Module):
             dropout=attention_dropout,
             batch_first=True
         )
-        self.drop = nn.Dropout(residual_dropout)
+        self.drop = nn.Dropout(residual_dropout) if residual_dropout else nn.Identity()
         self.ln1 = nn.LayerNorm(embed_dim)
         self.ln2 = nn.LayerNorm(embed_dim)
         self.ff = nn.Sequential(
