@@ -34,7 +34,6 @@ if __name__ == "__main__":
     env = env_fn()
 
     # define the algorithm
-    print(args["algorithm"])
     algorithm = vars(wiserl.algorithm)[args["algorithm"].pop("class")](
         env.observation_space,
         env.action_space,

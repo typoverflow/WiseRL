@@ -1,10 +1,10 @@
 algorithm:
   class: OPPO
   z_dim: 16
-  seq_len: 20
-  pref_loss_ratio: 0.5
+  seq_len: 100
+  pref_loss_ratio: 10
   znorm_loss_ratio: 0.1
-  warmup_steps: 100000
+  warmup_steps: 10000
 
 checkpoint: null
 seed: 2
@@ -35,7 +35,7 @@ optim:
     weight_decay: 0.0001
   zstar:
     class: AdamW
-    lr: 0.001
+    lr: 0.01
     weight_decay: 0.0001
 
 
@@ -56,7 +56,7 @@ dataset:
   - class: OPPODataset
     env: hopper-medium-expert-v2
     batch_size: 128 # [64, 128]
-    seq_len: 20
+    seq_len: 100
     foresee: 200
 
 dataloader:

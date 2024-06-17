@@ -105,20 +105,15 @@ class PreferenceDecisionTransformer(BaseTransformer):
         states: torch.Tensor,
         actions: torch.Tensor,
         zs: torch.Tensor,
-        timesteps: Optional[torch.Tensor]=None
+        timesteps: Optional[torch.Tensor]=None,
+        mask: Optional[torch.Tensor]=None
     ):
         device = states.device
-        states = states[:,-self.seq_len:]
-        actions = actions[:,-self.seq_len:]
+
         zs = zs = zs.reshape(1, 1, self.z_dim)
-        timesteps = timesteps[:,-self.seq_len:]
         B, L, _ = states.shape
-        mask = torch.cat([torch.zeros(L), torch.ones(self.seq_len-L)])
-        mask = mask.to(dtype=torch.int32, device=device).reshape(1, -1)
-        states = torch.cat([states, torch.zeros((B, self.seq_len-L, self.state_dim), device=device)],dim=1)
-        actions = torch.cat([actions, torch.zeros((B, self.seq_len - L, self.action_dim),device=device)],dim=1)
         zs = torch.cat([zs, torch.zeros((1, self.seq_len-1, self.z_dim), device=device)],dim=1)
-        timesteps = torch.cat([timesteps, torch.zeros((B, self.seq_len-L), device=device).int()],dim=1)
+        
         state_preds, action_preds, return_preds = self.forward(states, actions, zs, timesteps, key_padding_mask=mask)
         return action_preds[0,-1].cpu().numpy()
 

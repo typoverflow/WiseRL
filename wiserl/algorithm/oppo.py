@@ -38,7 +38,7 @@ class OPPO(Algorithm):
         self.warmup_steps = warmup_steps
         super().__init__(*args, **kwargs)
         
-        self.him_loss = nn.MSELoss()
+        self.him_loss = nn.MSELoss(reduction='none')
         self.pref_loss = nn.TripletMarginLoss(margin=1.0, p=2)
         self.znorm_loss = nn.MSELoss()
 
@@ -115,85 +115,71 @@ class OPPO(Algorithm):
             )
         }
 
-    def select_action(self, batch, deterministic: bool=True):
-        return self.network['policy'].get_action(batch['obs'], batch['action'], self.z_star, batch['timestep'])
+    def select_action(self, batch, deterministic: bool=True): 
+        states = batch['obs'][:,-self.seq_len:]
+        actions = batch['action'][:,-self.seq_len:]
+        timesteps = batch['timestep'][:,-self.seq_len:]
+
+        B, L, _ = states.shape
+        mask = torch.cat([torch.zeros(L), torch.ones(self.seq_len-L)])
+        mask = mask.to(dtype=torch.int32, device=self.device).reshape(1, -1)
+        states = torch.cat([states, torch.zeros((B, self.seq_len-L, self.obs_dim), device=self.device)],dim=1)
+        actions = torch.cat([actions, torch.zeros((B, self.seq_len - L, self.action_dim),device=self.device)],dim=1)
+        timesteps = torch.cat([timesteps, torch.zeros((B, self.seq_len-L), device=self.device).int()],dim=1)
+
+        return self.network['policy'].get_action(states, actions, self.z_star, timesteps, mask)
 
     def select_reward(self, batch, deterministic=False):
         pass
     
     # seperate one batch into two batches to simulate batches with preference
-    def split_batch(self, batches):
-        batch = batches[0]
+    def split_batch(self, batch):
         batch_size = batch['obs'].shape[0] // 2
-        #print(batch['obs'][0])
-        # TODO OPPO's rtg
         sample_indices = list(range(2*batch_size))
         random.shuffle(sample_indices)
 
         batch1 = {}
         batch2 = {}
         for k in batch.keys():
-            # TODO random sample seq_len slices
             batch1[k] = batch[k][sample_indices[:batch_size],:self.seq_len].to(self.device)
             batch2[k] = batch[k][sample_indices[batch_size:],:self.seq_len].to(self.device)
         return [batch1, batch2]
 
     def train_step(self, batches, step: int, total_steps: int):
-        print('train', str(step)+':'+str(total_steps))
-        batches = self.split_batch(batches)
+        batch = batches[0]
+
         metrics = {}
+        batch_size = batch['obs'].shape[0]
+        action_target = torch.clone(batch['action'])
 
-        batch_size = batches[0]['obs'].shape[0]
+        z = self.network.encoder(
+            states=batch['obs'],
+            actions=batch['action'],
+            timesteps=batch['timestep'],
+            key_padding_mask=1-batch['mask']
+        )
+        znorm_loss = self.znorm_loss(torch.norm(z, dim=1), torch.ones(batch_size).to(self.device))
 
-        action_target_1 = torch.clone(batches[0]['action'])
-        action_target_2 = torch.clone(batches[1]['action'])
+        _, action_preds, _ = self.network.policy(
+            states=batch['obs'],
+            actions=batch['action'],
+            zs = z.expand(self.seq_len, -1, -1).permute(1, 0, 2),
+            timesteps=batch['timestep'],
+            key_padding_mask=1-batch['mask']
+        )
+        him_mask = batch['mask'].unsqueeze(-1).repeat([1,1,3])
+        him_loss = (self.him_loss(action_preds, action_target) * him_mask).sum() / him_mask.sum()
 
+        batch['z'] = z
+        preference_batches = self.split_batch(batch)
         margin = 0
-        lb = (batches[0]['return_to_go'][:,0,0] - batches[1]['return_to_go'][:,0,0]) > margin
-        rb = (batches[1]['return_to_go'][:,0,0] - batches[0]['return_to_go'][:,0,0]) > margin
-
-        z1 = self.network.encoder(
-            states=batches[0]['obs'],
-            actions=batches[0]['action'],
-            timesteps=batches[0]['timestep'],
-            key_padding_mask=1-batches[0]['mask']
-        )
-        z2 = self.network.encoder(
-            states=batches[1]['obs'],
-            actions=batches[1]['action'],
-            timesteps=batches[1]['timestep'],
-            key_padding_mask=1-batches[1]['mask']
-        )
-        znorm_loss = (self.znorm_loss(torch.norm(z1, dim=1), torch.ones(batch_size).to(self.device))
-                       + self.znorm_loss(torch.norm(z2, dim=1), torch.ones(batch_size).to(self.device)))
-        positive = torch.cat((z1[lb], z2[rb]), 0)
-        negative = torch.cat((z2[lb], z1[rb]), 0)
+        lb = (preference_batches[0]['return_to_go'][:,0,0] - preference_batches[1]['return_to_go'][:,0,0]) > margin
+        rb = (preference_batches[1]['return_to_go'][:,0,0] - preference_batches[0]['return_to_go'][:,0,0]) > margin
+        positive = torch.cat((preference_batches[0]['z'][lb], preference_batches[1]['z'][rb]), 0)
+        negative = torch.cat((preference_batches[1]['z'][lb], preference_batches[0]['z'][rb]), 0)
         anchor = self.z_star.expand(positive.shape[0], -1).detach()
         pref_loss = self.pref_loss(anchor, positive, negative)
 
-        z1 = z1.expand(self.seq_len, -1, -1).permute(1, 0, 2)
-        z2 = z2.expand(self.seq_len, -1, -1).permute(1, 0, 2)
-        _, action_preds_1, _ = self.network.policy(
-            states=batches[0]['obs'],
-            actions=batches[0]['action'],
-            zs = z1,
-            timesteps=batches[0]['timestep'],
-            key_padding_mask=1-batches[0]['mask']
-        )
-        _, action_preds_2, _ = self.network.policy(
-            states=batches[1]['obs'],
-            actions=batches[1]['action'],
-            zs = z2,
-            timesteps=batches[1]['timestep'],
-            key_padding_mask=1-batches[1]['mask']
-        )
-
-        action_preds_1 = action_preds_1.reshape(-1, self.action_dim)[batches[0]['mask'].reshape(-1) > 0]
-        action_target_1 = action_target_1.reshape(-1, self.action_dim)[batches[0]['mask'].reshape(-1) > 0]
-        action_preds_2 = action_preds_2.reshape(-1, self.action_dim)[batches[1]['mask'].reshape(-1) > 0]
-        action_target_2 = action_target_2.reshape(-1, self.action_dim)[batches[1]['mask'].reshape(-1) > 0]
-
-        him_loss = self.him_loss(action_preds_1, action_target_1) + self.him_loss(action_preds_2, action_target_2)
         self.optim['encoder'].zero_grad()
         self.optim['policy'].zero_grad()
         (
@@ -207,7 +193,7 @@ class OPPO(Algorithm):
         self.optim['encoder'].step()
         self.optim['policy'].step()
 
-        zstar_loss = self.update_zstar(batches, lb, rb)
+        zstar_loss = self.update_zstar(preference_batches, lb, rb)
         if step > 0 and step % 1000 == 0:
             self.schedulers['policy'].step()
 
