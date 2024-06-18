@@ -38,6 +38,9 @@ class HindsightPreferenceLearningAWAC(HindsightPreferenceLearning):
         vae_steps: int = 100000,
         rm_label: bool = True,
         reward_steps: int = 100000,
+        stoc_encoding: bool = True,
+        discrete: bool = True,
+        discrete_group: int = 8,
         **kwargs
     ):
         super().__init__(
@@ -57,91 +60,11 @@ class HindsightPreferenceLearningAWAC(HindsightPreferenceLearning):
             vae_steps=vae_steps,
             rm_label=rm_label,
             reward_steps=reward_steps,
+            stoc_encoding=stoc_encoding,
+            discrete=discrete,
+            discrete_group=discrete_group,
             **kwargs
         )
-
-    def setup_network(self, network_kwargs) -> None:
-        self.obs_dim = self.observation_space.shape[0]
-        self.action_dim = self.action_space.shape[0]
-        enc_kwargs = network_kwargs["encoder"]
-        future_encoder = GPT2(
-            input_dim=self.obs_dim+self.action_dim,
-            embed_dim=enc_kwargs["embed_dim"],
-            num_layers=enc_kwargs["num_layers"],
-            num_heads=enc_kwargs["num_heads"],
-            attention_dropout=enc_kwargs["dropout"],
-            residual_dropout=enc_kwargs["dropout"],
-            embed_dropout=enc_kwargs["dropout"],
-            causal=False,
-            seq_len=self.seq_len
-        )
-        future_proj = GaussianActor(
-            input_dim=enc_kwargs["embed_dim"],
-            output_dim=self.z_dim,
-            reparameterize=True,
-            conditioned_logstd=True
-        )
-        dec_kwargs = network_kwargs["decoder"]
-        decoder = Decoder(
-            obs_dim=self.obs_dim,
-            action_dim=self.action_dim,
-            z_dim=self.z_dim,
-            num_time_delta=self.future_len+1,  # +1 because sometimes we may predict the s-a itself
-            embed_dim=self.z_dim,
-            hidden_dims=dec_kwargs["hidden_dims"]
-        )
-        prior_kwargs = network_kwargs["prior"]
-        prior = GaussianActor(
-            input_dim=self.obs_dim+self.action_dim,
-            output_dim=self.z_dim,
-            reparameterize=True,
-            conditioned_logstd=True,
-            hidden_dims=prior_kwargs["hidden_dims"]
-        )
-        reward_act = network_kwargs["reward"].pop("reward_act")
-        reward = vars(wiserl.module)[network_kwargs["reward"].pop("class")](
-            input_dim=self.observation_space.shape[0]+self.action_space.shape[0]+self.z_dim,
-            output_dim=1,
-            **network_kwargs["reward"]
-        )
-        reward = nn.Sequential(
-            reward,
-            nn.Sigmoid() if reward_act == "sigmoid" else nn.Identity()
-        )
-        actor = vars(wiserl.module)[network_kwargs["actor"].pop("class")](
-            input_dim=self.observation_space.shape[0],
-            output_dim=self.action_space.shape[0],
-            **network_kwargs["actor"]
-        )
-        critic = vars(wiserl.module)[network_kwargs["critic"].pop("class")](
-            input_dim=self.observation_space.shape[0]+self.action_space.shape[0],
-            output_dim=1,
-            **network_kwargs["critic"]
-        )
-
-        self.network = nn.ModuleDict({
-            "future_encoder": future_encoder.to(self.device),
-            "future_proj": future_proj.to(self.device),
-            "decoder": decoder.to(self.device),
-            "prior": prior.to(self.device),
-            "reward": reward.to(self.device),
-            "actor": actor.to(self.device),
-            "critic": critic.to(self.device),
-        })
-        self.target_network = nn.ModuleDict({
-            "critic": make_target(self.network.critic)
-        })
-
-    def setup_optimizers(self, optim_kwargs):
-        self.optim = {}
-        default_kwargs = optim_kwargs.get("default", {})
-        for k in {"future_encoder", "future_proj", "decoder", "prior", "reward", "actor", "critic"}:
-            this_kwargs = default_kwargs.copy()
-            this_kwargs.update(optim_kwargs.get(k, {}))
-            self.optim[k] = vars(torch.optim)[this_kwargs.pop("class")](
-                self.network[k].parameters(),
-                **this_kwargs
-            )
 
     def update_agent(self, obs, action, next_obs, reward, terminal):
         # compute the loss for actor
