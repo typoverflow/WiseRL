@@ -12,10 +12,10 @@ algorithm:
   reward_steps: 100000 # [20k]
   kl_loss_coef: 0.1 # [0.5, 5.0]
   kl_balance_coef: 0.5
-  reg_coef: 0.0
+  reg_coef: 0.0001
   discrete: true
   discrete_group: 8
-  stoc_encoding: false
+  stoc_encoding: true
   rm_label: true
 
 checkpoint: null
@@ -129,3 +129,5 @@ rl_eval:
 schedulers:
 
 processor: null
+
+# finalized

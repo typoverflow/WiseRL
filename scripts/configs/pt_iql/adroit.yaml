@@ -57,7 +57,7 @@ network:
 rm_dataset:
   - class: IPLComparisonOfflineDataset
     env: pen-cloned-v1
-    batch_size: 8
+    batch_size: 64
     mode: human
 rm_dataloader:
   num_workers: 2
