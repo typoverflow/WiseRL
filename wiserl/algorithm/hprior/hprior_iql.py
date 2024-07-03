@@ -10,6 +10,7 @@ import torch.nn as nn
 import wiserl.module
 from wiserl.algorithm.oracle_iql import OracleIQL
 from wiserl.module.actor import DeterministicActor, GaussianActor
+from wiserl.module.net import attention
 from wiserl.module.net.attention.twm import TransformerBasedWorldModel
 from wiserl.utils.functional import expectile_regression
 from wiserl.utils.misc import make_target, sync_target
@@ -52,8 +53,9 @@ class Hindsight_PRIOR_IQL(OracleIQL):
         self.obs_dim = self.observation_space.shape[0]
         self.action_dim = self.action_space.shape[0]
 
-        self.world_criterion = torch.nn.MSELoss(reduction="none")
+        self.world_criterion = torch.nn.L1Loss(reduction="none")
         self.reward_criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
+        self.prior_criterion = torch.nn.MSELoss(reduction="none")
 
     def setup_network(self, network_kwargs):
         super().setup_network(network_kwargs)
@@ -151,16 +153,31 @@ class Hindsight_PRIOR_IQL(OracleIQL):
         labels = label.float().unsqueeze(0).expand_as(logits)
         reward_loss = self.reward_criterion(logits, labels).sum(0).mean()
         reg_loss = (r1**2).sum(0).mean() + (r2**2).sum(0).mean()
+        # hindsight prior loss by attention weights
+        obs = torch.concat([obs_1, obs_2], dim=0)
+        action = torch.concat([action_1, action_2], dim=0)
+        r = torch.concat([r1, r2], dim=1)
+        predicted_return = r.sum(dim=2)
+        _, attentions = self.network.world(obs, action, None)
+        # get last attentions -> [F_B, num_layers, 2 * F_S]
+        attentions = torch.stack([attn[:, -1] for attn in attentions], dim=1)
+        # alpha = 1/L * sum_{l=1}^{L} (attn_{s_t}^l + attn_{a_t}^l) -> [F_B, F_S]
+        attentions = attentions.reshape(*attentions.shape[:-1], -1, 2).sum(dim=-1)
+        prior_importance = attentions.mean(dim=1)
+        r_target = prior_importance * predicted_return
+        r_target = r_target.unsqueeze(-1)
+        prior_loss = self.prior_criterion(r, r_target).mean()
         with torch.no_grad():
             reward_accuracy = ((logits > 0) == torch.round(labels)).float().mean()
 
         self.optim["reward"].zero_grad()
-        (reward_loss + self.reward_reg * reg_loss).backward()
+        (reward_loss + self.reward_reg * reg_loss + self.prior_coef * prior_loss).backward()
         self.optim["reward"].step()
 
         metrics = {
             "loss/reward_loss": reward_loss.item(),
             "loss/reward_reg_loss": reg_loss.item(),
+            "loss/prior_loss": reg_loss.item(),
             "misc/reward_acc": reward_accuracy.item(),
             "misc/reward_value": all_reward.mean().item()
         }

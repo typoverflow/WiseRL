@@ -5,8 +5,8 @@ algorithm:
   max_exp_clip: 100.0
   reward_reg: 0.0
   max_seq_len: 100
-  world_steps: 50000
-  prior_coef: 1.0
+  world_steps: 20000
+  prior_coef: 1000
   rm_label: true
 
 checkpoint: null
