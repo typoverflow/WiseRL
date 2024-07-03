@@ -39,24 +39,25 @@ class GPTBlock(nn.Module):
         self,
         input: torch.Tensor,
         attention_mask: Optional[torch.Tensor]=None,
-        key_padding_mask: Optional[torch.Tensor]=None
+        key_padding_mask: Optional[torch.Tensor]=None,
+        need_weights: bool=False,
     ):
         if attention_mask is not None:
             attention_mask = attention_mask.to(torch.bool)
 
         residual = input
         input = self.ln1(input)
-        attn_output = self.attention(
+        attn_output, attn_output_weights = self.attention(
             query=input,
             key=input,
             value=input,
-            need_weights=False,
+            need_weights=need_weights,
             attn_mask=attention_mask,
             key_padding_mask=key_padding_mask
-        )[0]
+        )
         residual = residual + self.drop(attn_output) # this is because pytorch MHV don't do dropout after final projection
         residual = residual + self.ff(self.ln2(residual))
-        return residual
+        return residual, attn_output_weights
 
 
 class GPT2(BaseTransformer):
@@ -96,7 +97,8 @@ class GPT2(BaseTransformer):
         timesteps: Optional[torch.Tensor]=None,
         attention_mask: Optional[torch.Tensor]=None,
         key_padding_mask: Optional[torch.Tensor]=None,
-        do_embedding: bool=True
+        do_embedding: bool=True,
+        output_attentions: bool=False,
     ):
         B, L, *_ = inputs.shape
         if self.causal:
@@ -111,7 +113,11 @@ class GPT2(BaseTransformer):
             inputs = self.input_embed(inputs)
             inputs = self.pos_encoding(inputs, timesteps)
         inputs = self.embed_dropout(inputs)
+        attentions = []
         for i, block in enumerate(self.blocks):
-            inputs = block(inputs, attention_mask=mask, key_padding_mask=key_padding_mask)
+            inputs, weights = block(inputs, attention_mask=mask, key_padding_mask=key_padding_mask, need_weights=output_attentions)
+            attentions.append(weights)
         inputs = self.out_ln(inputs)
+        if output_attentions:
+            return inputs, tuple(attentions)
         return inputs
