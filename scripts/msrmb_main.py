@@ -33,6 +33,7 @@ if __name__ == "__main__":
     eval_env_fn = functools.partial(get_env, args["env"], args["env_kwargs"], args["env_wrapper"], args["env_wrapper_kwargs"])
     env = env_fn()
 
+    embed_type = args["algorithm"].pop("embed_type")
     # define the algorithm
     algorithm = vars(wiserl.algorithm)[args["algorithm"].pop("class")](
         env.observation_space,
@@ -43,6 +44,8 @@ if __name__ == "__main__":
         args["processor"],
         args["checkpoint"],
         **args["algorithm"],
+        embed_type=embed_type,
+        embed_args=args["embedding"][embed_type],
         device=args["device"]
     )
 
@@ -51,7 +54,7 @@ if __name__ == "__main__":
         algorithm=algorithm,
         env_fn=env_fn,
         eval_env_fn=eval_env_fn,
-        rm_dataset_kwargs=args["rm_dataset"],
+        rm_dataset_kwargs=args["rm_dataset"][embed_type],
         rm_dataloader_kwargs=args["rm_dataloader"],
         rm_eval_kwargs=args["rm_eval"],
         rl_dataset_kwargs=args["rl_dataset"],

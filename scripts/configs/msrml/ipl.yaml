@@ -1,8 +1,8 @@
 algorithm:
   class: MultiSpatialRewardModelLearning
-  num_preference: 5
-  preference_dimension: 256
-  embed_type: HIM
+  num_preference: 1
+  preference_dimension: 32
+  embed_type: Test
 
 checkpoint: null
 seed: 0
@@ -83,11 +83,35 @@ embedding:
     schedulers:
     processor: null
     checkpoint: null
-  
+  Test:
+    embed_args:
+      bt_ratio: 0.5
+      sale_ratio: 1
+    network:
+      state_encoder:
+        class: EnsembleMLP
+        ensemble_size: 1
+        hidden_dims: [256, 256]
+        activation: ELU
+      joint_encoder:
+        class: EnsembleMLP
+        ensemble_size: 1
+        hidden_dims: [256, 256]
+        activation: identity
+    optim:
+      state_encoder:
+        class: Adam
+        lr: 0.0005
+      joint_encoder:
+        class: Adam
+        lr: 0.0005
+    schedulers:
+    processor: null
+    checkpoint: null
   
   
 
-env: hopper-medium-replay-v2
+env: hopper-medium-expert-v2
 env_kwargs:
 env_wrapper:
 env_wrapper_kwargs:
@@ -107,16 +131,21 @@ rm_dataset:
       batch_size: 128
       mode: trajectory
   SALE:
-    - class: D4RLOfflineDataset
+    - class: IPLComparisonOfflineDataset
       env: hopper-medium-replay-v2
       batch_size: 128
-      mode: trajectory
+      mode: script
   HIM:
     - class: OPPODataset
       env: hopper-medium-replay-v2
       batch_size: 128 # [64, 128]
       seq_len: 100
       foresee: 200
+  Test:
+    - class: IPLComparisonOfflineDataset
+      env: hopper-medium-replay-v2
+      batch_size: 256
+      mode: script
 
 rm_dataloader:
   num_workers: 2
@@ -135,8 +164,8 @@ rl_dataloader:
 trainer:
   env_freq: null
   rm_label: true
-  embed_steps: 3
-  cluster_steps: 3
+  embed_steps: 50
+  cluster_steps: 0
   rl_steps: 1
   log_freq: 500
   profile_freq: 500

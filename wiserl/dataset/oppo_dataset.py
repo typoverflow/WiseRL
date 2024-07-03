@@ -97,14 +97,9 @@ class OPPODataset(torch.utils.data.IterableDataset):
         
     def load_dataset(self):
         dataset_path = '../wiserl/dataset/oppo_data/'+self.env_name+'.pkl'
-        print(dataset_path)
         with open(dataset_path, 'rb') as f:
             trajectories = pickle.load(f)
         self.trajectories = trajectories
-        
-        print(len(trajectories))
-        for k in trajectories[0].keys():
-            print(k, trajectories[0][k].shape)
         
         states, traj_lens, returns = [], [], []
         for path in trajectories:

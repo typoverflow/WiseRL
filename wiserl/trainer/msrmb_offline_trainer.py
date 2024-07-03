@@ -24,7 +24,8 @@ class MultiSpatialRewardModelBasedOfflineTrainer(OfflineTrainer):
         eval_env_fn: Optional[Callable] = None,
         rm_dataset_kwargs: Optional[Sequence[str]] = None,
         rm_dataloader_kwargs: Optional[Sequence[Dict]] = None,
-        rm_steps: int = 1000,
+        embed_steps: int = 1000,
+        cluster_steps: int = 10,
         rm_eval_kwargs: Optional[dict] = None,
         rl_dataset_kwargs: Optional[Sequence[str]] = None,
         rl_dataloader_kwargs: Optional[Sequence[Dict]] = None,
@@ -57,7 +58,8 @@ class MultiSpatialRewardModelBasedOfflineTrainer(OfflineTrainer):
             logger=logger,
             device=device
         )
-        self.rm_steps = rm_steps
+        self.embed_steps = embed_steps
+        self.cluster_steps = cluster_steps
         self.rl_steps = rl_steps
         self.rm_label = rm_label
         self.load_rm_path = load_rm_path
@@ -77,26 +79,34 @@ class MultiSpatialRewardModelBasedOfflineTrainer(OfflineTrainer):
     def train(self):
         self.algorithm.train()
 
-        # TODO: implement OPPO
         # first train the reward model
         if self.load_rm_path is not None:
             self.logger.info(f"Loading pretrained model from {self.load_rm_path} ... ")
             self.algorithm.load_pretrain(self.load_rm_path)
         else:
             self.logger.info("Setting up pretrain datasets and dataloaders ... ")
-            # TODO: preference dataset
             self._rm_datasets = self.setup_datasets(self.rm_dataset_kwargs)
-            self._rm_dataloaders, self._rm_dataloaders_iter = self.setup_dataloaders(self._rm_datasets, self.rm_dataloader_kwargs)
-
-            self.logger.info("Starting pretraining ... ")
-
-            full_batch = batches = [next(d) for d in self._rm_dataloaders_iter]
-            full_batch = self.algorithm.format_batch(full_batch)
-            for step in trange(0, self.rm_steps+1, desc="pretrain"):
-                pretrain_metrics = self.algorithm.pretrain_step(full_batch, step=step, total_steps=self.rm_steps)
+            self._embed_dataloaders, self._embed_dataloaders_iter = self.setup_dataloaders(self._rm_datasets, self.rm_dataloader_kwargs)
             
+            for step in trange(0, self.embed_steps+1, desc="pretrain embedding"):
+                batches = [next(d) for d in self._embed_dataloaders_iter]
+                batches = self.algorithm.format_batch(batches)
+                pretrain_metrics = self.algorithm.embedding_step(batches, step=step, total_steps=self.embed_steps)
+
+            # use the whole dataset for clustering
+            #for dataset in self._rm_datasets:
+            #    dataset.batch_size = len(dataset)
+            #self._cluster_dataloaders, self._cluster_dataloaders_iter = self.setup_dataloaders(self._rm_datasets, self.rm_dataloader_kwargs)
+
+            for step in trange(0, self.cluster_steps+1, desc="pretrain clustering"):
+                batches = [self._rm_datasets[0].data]
+                batches = self.algorithm.format_batch(batches)
+                pretrain_metrics = self.algorithm.cluster_step(batches)
+                eval_metrics = self.algorithm.cluster_eval(batches)
+
+
         # finally train the rl agent
-        # TODO algo 2 here
+        # TODO rl training here
         
 
         # clean up
