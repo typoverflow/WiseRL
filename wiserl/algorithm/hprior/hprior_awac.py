@@ -12,7 +12,7 @@ from wiserl.module.net.attention.twm import TransformerBasedWorldModel
 from wiserl.utils.misc import sync_target
 
 
-class Hindsight_PRIOR_IQL(OracleAWAC):
+class Hindsight_PRIOR_AWAC(OracleAWAC):
     def __init__(
         self,
         *args,

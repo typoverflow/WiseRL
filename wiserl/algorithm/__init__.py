@@ -5,6 +5,7 @@ from wiserl.algorithm.cpl_kl import CPL_KL
 from wiserl.algorithm.hpl.hpl import HindsightPreferenceLearning
 from wiserl.algorithm.hpl.hpl_awac import HindsightPreferenceLearningAWAC
 from wiserl.algorithm.hprior.hprior_iql import Hindsight_PRIOR_IQL
+from wiserl.algorithm.hprior.hprior_awac import Hindsight_PRIOR_AWAC
 from wiserl.algorithm.ipl.ipl_awac import IPL_AWAC
 from wiserl.algorithm.ipl.ipl_iql import IPL_IQL
 from wiserl.algorithm.oracle_awac import OracleAWAC
