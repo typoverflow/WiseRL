@@ -3,21 +3,19 @@ import os
 from operator import itemgetter
 from typing import Any, Dict, Optional, Type
 
-import numpy as np
 import torch
 import torch.nn as nn
 
 import wiserl.module
-from wiserl.algorithm.oracle_iql import OracleIQL
+from wiserl.algorithm.oracle_awac import OracleAWAC
 from wiserl.module.net.attention.twm import TransformerBasedWorldModel
 from wiserl.utils.misc import sync_target
 
 
-class Hindsight_PRIOR_IQL(OracleIQL):
+class Hindsight_PRIOR_IQL(OracleAWAC):
     def __init__(
         self,
         *args,
-        expectile: float = 0.7,
         beta: float = 0.3333,
         max_exp_clip: float = 100.0,
         discount: float = 0.99,
@@ -33,7 +31,6 @@ class Hindsight_PRIOR_IQL(OracleIQL):
         self.max_seq_len = max_seq_len
         super().__init__(
             *args,
-            expectile=expectile,
             beta=beta,
             max_exp_clip=max_exp_clip,
             discount=discount,
@@ -189,24 +186,13 @@ class Hindsight_PRIOR_IQL(OracleIQL):
             with torch.no_grad():
                 reward = self.select_reward({"obs": obs, "action": action}, deterministic=True)
 
-        with torch.no_grad():
-            self.target_network.eval()
-            q_old = self.target_network.critic(obs, action)
-            q_old = torch.min(q_old, dim=0)[0]
-
-        # compute the loss for value network
-        v_loss, v_pred = self.v_loss(obs.detach(), q_old)
-        self.optim["value"].zero_grad()
-        v_loss.backward()
-        self.optim["value"].step()
-
         # compute the loss for actor
-        actor_loss, advantage = self.actor_loss(obs, action, q_old, v_pred.detach())
+        actor_loss, advantage = self.actor_loss(obs, action)
         self.optim["actor"].zero_grad()
         actor_loss.backward()
         self.optim["actor"].step()
 
-        # compute the loss for q
+        # compute the loss for q, offset by 1
         q_loss, q_pred = self.q_loss(obs, action, next_obs, reward, terminal)
         self.optim["critic"].zero_grad()
         q_loss.backward()
@@ -220,10 +206,8 @@ class Hindsight_PRIOR_IQL(OracleIQL):
 
         metrics = {
             "loss/q_loss": q_loss.item(),
-            "loss/v_loss": v_loss.item(),
             "loss/actor_loss": actor_loss.item(),
             "misc/q_pred": q_pred.mean().item(),
-            "misc/v_pred": v_pred.mean().item(),
             "misc/advantage": advantage.mean().item()
         }
         return metrics
