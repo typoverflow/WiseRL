@@ -16,7 +16,7 @@ algorithm:
   reg_coef: 0.0
   discrete: true
   discrete_group: 8
-  stoc_encoding: false
+  stoc_encoding: false  # for hopper-medium-expert, try true
   rm_label: true
 
 checkpoint: null
