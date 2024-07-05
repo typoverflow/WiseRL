@@ -4,17 +4,27 @@
 
 </p>
 
-> 🚧 This repo is subject to major API changes 🚧
 
 WiseRL provides unofficial and banchmarked PyTorch implementations for Offline Preference-Based RL algorithms, including:
 - Oracle-IQL & Oracle AWAC
-- Supervised Finetuning (SFT)
-- Bradley-Terry Model + IQL/AWAC (BT-IQL/AWAC)
-- Contrastive Prefereing Learning (CPL)
-- Inverse Preference Learning + IQL/AWAC (IPL-IQL/AWAC)
-- Preference Transformer + IQL (PT-IQL)
+- Supervised Finetuning
+- Bradley-Terry Model + IQL/AWAC
+- Contrastive Prefereing Learning
+- Inverse Preference Learning + IQL/AWAC
+- Preference Transformer + IQL/AWAC
+- Hindsight Preference Learning + IQL/AWAC
 
-# Installation
+## Usage
+```bash
+# for reward-model free algorithms
+python3 scripts/main.py --config /path/to/config.yaml
+
+# for reward-model-based algorithms
+python3 scripts/rmb_main.py --config /path/to/config.yaml
+```
+
+
+## Installation
 + clone this repo and install the dependencies
   ```bash
   git clone git@github.com:typoverflow/WiseRL
@@ -61,3 +71,7 @@ WiseRL provides unofficial and banchmarked PyTorch implementations for Offline P
       ```
     + Run `import robomimic` repeatedly until it completes. Install the missing packages if any error shows up.
     + Note that the above installation scripts will download the datasets to `~/.robosuite/datasets`. If you would like to change to other locations, please make sure to change the macro in Robomimic Dataset accordingly.
+
+## Acknowledgement
++ [Research Lightening](https://github.com/jhejna/research-lightning) and [Inverse Preference Learning](https://github.com/jhejna/inverse-preference-learning): for their module design and implementations of some baseline algorithms.
++ [Preference Transformer](https://github.com/csmile-1006/PreferenceTransformer): for the Gym-MuJoCo datasets.
