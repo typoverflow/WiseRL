@@ -5,14 +5,14 @@
 </p>
 
 
-WiseRL provides unofficial and banchmarked PyTorch implementations for Offline Preference-Based RL algorithms, including:
+WiseRL provides banchmarked PyTorch implementations for Offline Preference-Based RL algorithms, including:
 - Oracle-IQL & Oracle AWAC
 - Supervised Finetuning
 - Bradley-Terry Model + IQL/AWAC
 - Contrastive Prefereing Learning
 - Inverse Preference Learning + IQL/AWAC
 - Preference Transformer + IQL/AWAC
-- Hindsight Preference Learning + IQL/AWAC
+- [Hindsight Preference Learning](https://arxiv.org/abs/2407.04451) + IQL/AWAC
 
 ## Usage
 ```bash
@@ -75,3 +75,22 @@ python3 scripts/rmb_main.py --config /path/to/config.yaml
 ## Acknowledgement
 + [Research Lightening](https://github.com/jhejna/research-lightning) and [Inverse Preference Learning](https://github.com/jhejna/inverse-preference-learning): for their module design and implementations of some baseline algorithms.
 + [Preference Transformer](https://github.com/csmile-1006/PreferenceTransformer): for the Gym-MuJoCo datasets.
+
+
+## Citation
+```bibtex
+@software{wiserl
+  title = {{WiseRL: Benchmarked Implementations of Offline Preference-based RL Algorithms}},
+  author = {Gao, Chen-Xiao and Shengjun, Fang},
+  month = feb,
+  url = {https://github.com/typoverflow/WiseRL},
+  year = {2024}
+}
+
+@article{gao2024hindsight,
+  title={Hindsight Preference Learning for Offline Preference-based Reinforcement Learning},
+  author={Chen-Xiao Gao and Shengjun Fang and Chenjun Xiao and Yang Yu and Zongzhang Zhang},
+  journal={arXiv preprint arXiv:2407.04451},
+  year={2024},
+}
+```
