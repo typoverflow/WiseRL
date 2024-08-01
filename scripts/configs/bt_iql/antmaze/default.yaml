@@ -1,6 +1,6 @@
 algorithm:
   class: BTIQL
-  beta: 0.3333
+  beta: 0.1
   expectile: 0.9
   max_exp_clip: 100.0
   reward_reg: 0.0
@@ -87,7 +87,7 @@ rm_eval:
     eval: false
 rl_eval:
   function: eval_offline
-  num_ep: 10
+  num_ep: 100
   deterministic: true
 
 schedulers:

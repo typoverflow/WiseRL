@@ -1,7 +1,7 @@
 algorithm:
   class: IPL_IQL
-  beta: 0.3333
-  expectile: 0.7
+  beta: 0.1
+  expectile: 0.9
   reward_reg: 0.5
   reg_replay_weight: 0.5
   actor_replay_weight: 0.5
@@ -21,7 +21,7 @@ wandb:
   entity: null
   project: null
 
-env: antmaze-large-diverse-v2
+env: antmaze-medium-diverse-v2
 env_kwargs:
 env_wrapper:
 env_wrapper_kwargs:
@@ -50,12 +50,12 @@ network:
 
 dataset:
   - class: IPLComparisonOfflineDataset
-    env: antmaze-large-diverse-v2
+    env: antmaze-medium-diverse-v2
     batch_size: 8
     mode: human
     segment_length: null
   - class: D4RLOfflineDataset
-    env: antmaze-large-diverse-v2
+    env: antmaze-medium-diverse-v2
     batch_size: 256
     mode: transition
     reward_normalize: true
