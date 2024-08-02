@@ -84,7 +84,7 @@ rm_eval:
     env: antmaze-medium-diverse-v2
     batch_size: 32
     mode: human
-    eval: false
+    eval: true
 rl_eval:
   function: eval_offline
   num_ep: 100
