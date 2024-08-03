@@ -180,10 +180,7 @@ class Algorithm(ABC):
                 **kwargs
             )
 
-    def save(self, path: str, name: str, metadata: Optional[Dict]=None) -> None:
-        """
-        Saves a checkpoint of the model and the optimizers
-        """
+    def state_dict(self):
         save_dict = {}
         if len(self.optim) > 0:
             save_dict["optim"] = {k: v.state_dict() for k, v in self.optim.items()}
@@ -196,19 +193,10 @@ class Algorithm(ABC):
             else:
                 assert isinstance(attr, torch.nn.Parameter), "Can only save Modules or Parameters."
                 save_dict[k] = attr
+        return save_dict
 
-        # Add the metadata
-        save_dict["metadata"] = {} if metadata is None else metadata
-        os.makedirs(path, exist_ok=True)
-        save_path = os.path.join(path, name)
-        torch.save(save_dict, save_path)
-
-    def load(self, ckpt_path: str, strict: bool=True) -> Dict:
-        """
-        Loads the model and its associated checkpoints.
-        If we haven't created the optimizers and schedulers, do not load those.
-        """
-        checkpoint = torch.load(ckpt_path, map_location=self.device)
+    def load_state_dict(self, state_dict, strict=False):
+        checkpoint = state_dict
         remaining_checkpoint_keys = set(checkpoint.keys())
 
         # First load everything except for the optim
@@ -255,6 +243,28 @@ class Algorithm(ABC):
             raise ValueError("Algorithm did not have keys ", +str(remaining_checkpoint_keys))
         elif len(remaining_checkpoint_keys) > 0:
             print("Warning: Checkpoint keys", remaining_checkpoint_keys, "were not loaded.")
+
+        return checkpoint["metadata"]
+
+    def save(self, path: str, name: str, metadata: Optional[Dict]=None) -> None:
+        """
+        Saves a checkpoint of the model and the optimizers
+        """
+        save_dict = self.state_dict()
+
+        # Add the metadata
+        save_dict["metadata"] = {} if metadata is None else metadata
+        os.makedirs(path, exist_ok=True)
+        save_path = os.path.join(path, name)
+        torch.save(save_dict, save_path)
+
+    def load(self, ckpt_path: str, strict: bool=True) -> Dict:
+        """
+        Loads the model and its associated checkpoints.
+        If we haven't created the optimizers and schedulers, do not load those.
+        """
+        checkpoint = torch.load(ckpt_path, map_location=self.device)
+        self.load_state_dict(checkpoint, strict=strict)
 
         return checkpoint["metadata"]
 
