@@ -297,13 +297,14 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
                 # https://github.com/csmile-1006/PreferenceTransformer/blob/f71647bb075c8287e2f26aded78aa8f1ac176eb5/train_offline.py#L119
                 min_return, max_return  = min(ep_reward_), max(ep_reward_)
                 # idx = 0
+                print("max return: ", max_return, " min_return: ", min_return)
                 # for ep_len in ep_length_:
                 #     for l in range(ep_len):
-                #         self.data["reward"][idx] -= min_return / ep_len
+                #         self.data["reward"][idx] -= max_return / ep_len
                 #         idx += 1
                 # assert idx == N
                 norm = 1000 / (max_return - min_return)
-                self.data["reward"] *= norm
+                # self.data["reward"] *= norm
                 self.data["reward"] -= 1.0
                 self.data["reward"] *= self.data["mask"]
                 print(f"[D4RLOfflineDataset]: return range: [{min_return}, {max_return}], multiplying norm factor {norm}.")
