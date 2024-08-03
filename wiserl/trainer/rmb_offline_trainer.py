@@ -14,6 +14,7 @@ from UtilsRL.logger import BaseLogger
 import wiserl.dataset
 import wiserl.eval
 from wiserl.trainer.offline_trainer import OfflineTrainer
+from wiserl.utils.earlystop import EarlyStopManager
 
 
 class RewardModelBasedOfflineTrainer(OfflineTrainer):
@@ -26,6 +27,10 @@ class RewardModelBasedOfflineTrainer(OfflineTrainer):
         rm_dataloader_kwargs: Optional[Sequence[Dict]] = None,
         rm_steps: int = 1000,
         rm_eval_kwargs: Optional[dict] = None,
+        earlystop_tolerance: Optional[int] = None,
+        earlystop_metric: Optional[str] = None,
+        earlystop_mode: str="min",
+        earlystop_start_step: int=0,
         rl_dataset_kwargs: Optional[Sequence[str]] = None,
         rl_dataloader_kwargs: Optional[Sequence[Dict]] = None,
         rl_steps: int = 1000,
@@ -60,6 +65,10 @@ class RewardModelBasedOfflineTrainer(OfflineTrainer):
         self.rm_steps = rm_steps
         self.rl_steps = rl_steps
         self.rm_label = rm_label
+        self.earlystop_tolerance = earlystop_tolerance
+        self.earlystop_metric = earlystop_metric
+        self.earlystop_mode = earlystop_mode
+        self.earlystop_start_step = earlystop_start_step
         self.load_rm_path = load_rm_path
         self.save_rm_path = save_rm_path
         # rm & rl datasets, dataloaders, and evals
@@ -86,6 +95,21 @@ class RewardModelBasedOfflineTrainer(OfflineTrainer):
             self._rm_datasets = self.setup_datasets(self.rm_dataset_kwargs)
             self._rm_dataloaders, self._rm_dataloaders_iter = self.setup_dataloaders(self._rm_datasets, self.rm_dataloader_kwargs)
 
+            # register early stopping
+            if self.earlystop_tolerance is not None:
+                print(f"Registering early stopping, using metric={self.earlystop_metric}, mode={self.earlystop_mode}, tolerance={self.earlystop_tolerance}")
+                self.earlystop_manager = EarlyStopManager(
+                    self.earlystop_tolerance,
+                    self.earlystop_mode,
+                )
+                self.earlystop_manager.reset()
+                if self.rm_steps is None:
+                    print("Early stopping is enabled, but rm_steps is not set. Setting rm_steps to 9e9 ... ")
+                    self.rm_steps = int(9e9)
+            else:
+                self.earlystop_manager = None
+                assert self.rm_steps is not None
+
             self.logger.info("Starting pretraining ... ")
             for step in trange(0, self.rm_steps+1, desc="pretrain"):
                 batches = [next(d) for d in self._rm_dataloaders_iter]
@@ -100,6 +124,13 @@ class RewardModelBasedOfflineTrainer(OfflineTrainer):
                     eval_metrics = self.rm_evaluate()
                     self.logger.log_scalars("eval", eval_metrics, step=step)
                     self.algorithm.train()
+
+                    if step >= self.earlystop_start_step and self.earlystop_manager is not None:
+                        should_stop, best_model, best_metric = self.earlystop_manager.step(self.algorithm, eval_metrics[self.earlystop_metric])
+                        if should_stop:
+                            self.logger.info(f"Early stopping triggered at step {step}, best metric={best_metric}")
+                            self.algorithm.load_state_dict(best_model)
+                            break
 
             if self.save_rm_path is not None:
                 self.logger.info(f"Saving pretrained model to {self.save_rm_path} ...")
