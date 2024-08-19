@@ -9,10 +9,11 @@ algorithm:
   future_len: 5  # [5, 10, 20]
   z_dim: 128 # [128]
   prior_sample: 20
-  vae_steps: 250000 # [250k, 200k]
+  vae_steps: 125000 # [250k, 200k]
+  prior_steps: 125000 # [250k, 200k]
   reward_steps: 100000 # [20k]
   kl_loss_coef: 0.1 # [0.5, 5.0]
-  kl_balance_coef: 0.5
+  kl_balance_coef: 1.0
   reg_coef: 0.0
   discrete: true
   discrete_group: 8
@@ -29,7 +30,7 @@ wandb:
   entity: null
   project: null
 
-env: hopper-medium-expert-v2
+env: hopper-medium-replay-v2
 env_kwargs:
 env_wrapper:
 env_wrapper_kwargs:
@@ -79,17 +80,17 @@ network:
 
 rm_dataset:
   - class: D4RLOfflineDataset
-    env: hopper-medium-expert-v2
+    env: hopper-medium-replay-v2
     batch_size: 64 # [64, 128]
     mode: trajectory
     segment_length: 100
     padding_mode: none
   - class: IPLComparisonOfflineDataset
-    env: hopper-medium-expert-v2
+    env: hopper-medium-replay-v2
     batch_size: 8
     mode: human
   - class: D4RLOfflineDataset
-    env: hopper-medium-expert-v2
+    env: hopper-medium-replay-v2
     batch_size: 512
     mode: transition
 rm_dataloader:
@@ -98,7 +99,7 @@ rm_dataloader:
 
 rl_dataset:
   - class: D4RLOfflineDataset
-    env: hopper-medium-expert-v2
+    env: hopper-medium-replay-v2
     batch_size: 512
     mode: transition
 rl_dataloader:
@@ -118,7 +119,7 @@ rm_eval:
   function: eval_reward_model
   eval_dataset_kwargs:
     class: IPLComparisonOfflineDataset
-    env: hopper-medium-expert-v2
+    env: hopper-medium-replay-v2
     batch_size: 32
     mode: human
     eval: false

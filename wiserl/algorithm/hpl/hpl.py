@@ -65,6 +65,7 @@ class HindsightPreferenceLearning(Algorithm):
         kl_balance_coef: float = 0.8,
         reg_coef: float = 0.01,
         vae_steps: int = 100000,
+        prior_steps: int = 50000,
         rm_label: bool = True,
         reward_steps: int = 100000,
         stoc_encoding: bool = True,
@@ -85,6 +86,7 @@ class HindsightPreferenceLearning(Algorithm):
         self.kl_balance_coef = kl_balance_coef
         self.reg_coef = reg_coef
         self.vae_steps = vae_steps
+        self.prior_steps = prior_steps
         self.reward_steps = reward_steps
         self.stoc_encoding = stoc_encoding
         self.discrete = discrete
@@ -210,6 +212,23 @@ class HindsightPreferenceLearning(Algorithm):
                 torch.distributions.Normal(mean, logstd.exp()),
                 reinterpreted_batch_ndims=1
             )
+    
+    def get_z_default_distribution(self):
+        if self.discrete:
+            return torch.distributions.Independent(
+                torch.distributions.OneHotCategoricalStraightThrough(
+                    logits=torch.zeros([self.discrete_group, self.z_dim // self.discrete_group], device=self.device)
+                ),
+                reinterpreted_batch_ndims=1
+            )
+        else:
+            return torch.distributions.Independent(
+                torch.distributions.Normal(
+                    torch.zeros([self.z_dim], device=self.device),
+                    torch.ones([self.z_dim], device=self.device)
+                ),
+                reinterpreted_batch_ndims=1
+            )
 
     def get_z_sample(self, dist, reparameterize=False, deterministic=False):
         if self.discrete:
@@ -235,13 +254,14 @@ class HindsightPreferenceLearning(Algorithm):
 
     def pretrain_step(self, batches, step: int, total_steps: int):
         unlabel_batch, pref_batch, rl_batch = batches
-        assert step <= self.reward_steps + self.vae_steps, "pretrain step overflow"
-        if step < self.vae_steps:
+        assert step <= self.reward_steps + self.vae_steps + self.prior_steps, "pretrain step overflow"
+        if step < self.vae_steps + self.prior_steps:
             return self.update_vae(
+                step=step,
                 obs=unlabel_batch["obs"],
                 action=unlabel_batch["action"],
                 timestep=unlabel_batch["timestep"],
-                mask=unlabel_batch["mask"]
+                mask=unlabel_batch["mask"],
             )
         else:
             return self.update_reward(
@@ -362,7 +382,7 @@ class HindsightPreferenceLearning(Algorithm):
             "misc/reward_prior_abs": reward_prior.abs().mean().item(),
         }
 
-    def update_vae(self, obs: torch.Tensor, action: torch.Tensor, timestep: torch.Tensor, mask: torch.Tensor):
+    def update_vae(self, step: int, obs: torch.Tensor, action: torch.Tensor, timestep: torch.Tensor, mask: torch.Tensor):
         B, L, *_ = obs.shape
         obs_action = torch.concat([obs, action], dim=-1)
         posterior_out = self.network.future_encoder(
@@ -398,19 +418,21 @@ class HindsightPreferenceLearning(Algorithm):
         z_prior_dist = self.get_z_distribution(prior_out)
         prior_kl_loss = torch.distributions.kl.kl_divergence(
             self.get_z_distribution(posterior_out.detach()),
-            self.get_z_distribution(prior_out)
+            self.get_z_distribution(prior_out),
         ).mean()
         posterior_kl_loss = torch.distributions.kl.kl_divergence(
             self.get_z_distribution(posterior_out),
-            self.get_z_distribution(prior_out.detach())
+            self.get_z_default_distribution(),
         ).mean()
-        kl_loss = self.kl_balance_coef * prior_kl_loss + (1-self.kl_balance_coef) * posterior_kl_loss
 
         self.optim["future_encoder"].zero_grad()
         self.optim["future_proj"].zero_grad()
         self.optim["decoder"].zero_grad()
         self.optim["prior"].zero_grad()
-        (recon_loss + self.kl_loss_coef * kl_loss).backward()
+        if step <= self.vae_steps:
+            (recon_loss + self.kl_loss_coef * posterior_kl_loss).backward()
+        else:
+            prior_kl_loss.backward()
         self.optim["future_encoder"].step()
         self.optim["future_proj"].step()
         self.optim["decoder"].step()
@@ -418,7 +440,8 @@ class HindsightPreferenceLearning(Algorithm):
 
         ret = {
             "loss/recon_loss": recon_loss.item(),
-            "loss/kl_loss": kl_loss.item(),
+            "loss/prior_kl_loss": prior_kl_loss.item(),
+            "loss/posterior_kl_loss": posterior_kl_loss.item(),
         }
         if self.discrete:
             ret.update({
@@ -427,8 +450,8 @@ class HindsightPreferenceLearning(Algorithm):
             })
         else:
             ret.update({
-                "info/prior_std": z_prior_dist.base_dist.std.mean().item(),
-                "info/post_std": z_posterior_dist.base_dist.std.mean().item(),
+                "info/prior_std": z_prior_dist.base_dist.stddev.mean().item(),
+                "info/post_std": z_posterior_dist.base_dist.stddev.mean().item(),
             })
         return ret
 
