@@ -9,13 +9,16 @@ algorithm:
   future_len: 5
   z_dim: 128 # [64, 128]
   prior_sample: 20 # [5, 10]
-  vae_steps: 250000
+  vae_steps: 200000 # [250k, 200k]
+  prior_steps: 400000 # [250k, 200k]
   reward_steps: 100000
   kl_loss_coef: 0.1 # [0.5, 5.0]
   kl_balance_coef: 0.9
   reg_coef: 0.0001
   discrete: true
   discrete_group: 8
+  gumbel_softmax: true
+  temperature: 1.0
   stoc_encoding: true
   rm_label: true
 
@@ -107,7 +110,7 @@ rl_dataloader:
 trainer:
   env_freq: null
   rm_label: true
-  rm_steps: 350000
+  rm_steps: 700000
   rl_steps: 500000
   log_freq: 500
   profile_freq: 500

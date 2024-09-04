@@ -9,14 +9,16 @@ algorithm:
   future_len: 5  # [5, 10, 20]
   z_dim: 128 # [128]
   prior_sample: 20
-  vae_steps: 125000 # [250k, 200k]
-  prior_steps: 125000 # [250k, 200k]
+  vae_steps: 200000 # [250k, 200k]
+  prior_steps: 400000 # [250k, 200k]
   reward_steps: 100000 # [20k]
   kl_loss_coef: 0.1 # [0.5, 5.0]
   kl_balance_coef: 1.0
   reg_coef: 0.0
   discrete: true
   discrete_group: 8
+  gumbel_softmax: true
+  temperature: 1.0
   stoc_encoding: false  # for hopper-medium-expert, try true
   rm_label: true
 
@@ -109,7 +111,7 @@ rl_dataloader:
 trainer:
   env_freq: null
   rm_label: true
-  rm_steps: 350000
+  rm_steps: 700000
   rl_steps: 1000000
   log_freq: 500
   profile_freq: 500
