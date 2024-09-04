@@ -16,6 +16,8 @@ algorithm:
   reg_coef: 0.0001
   discrete: true
   discrete_group: 8
+  gumbel_softmax: true
+  temperature: 1.0
   stoc_encoding: true
   rm_label: true
 
