@@ -16,6 +16,7 @@ from wiserl.module.net.attention.gpt2 import GPT2
 from wiserl.module.net.mlp import MLP
 from wiserl.utils.functional import expectile_regression
 from wiserl.utils.misc import make_target, sync_target
+from wiserl.utils.distributions import OneHotCategoricalSTGumbelSoftmax
 
 
 class Decoder(nn.Module):
@@ -70,6 +71,8 @@ class HindsightPreferenceLearning(Algorithm):
         stoc_encoding: bool = True,
         discrete: bool = True,
         discrete_group: int = 8,
+        gumbel_softmax: bool = False,
+        temperature: float = 1.0,
         **kwargs
     ):
         self.expectile = expectile
@@ -89,6 +92,8 @@ class HindsightPreferenceLearning(Algorithm):
         self.stoc_encoding = stoc_encoding
         self.discrete = discrete
         self.discrete_group = discrete_group
+        self.gumbel_softmax = gumbel_softmax
+        self.temperature = temperature
         self.rm_label = rm_label
         super().__init__(*args, **kwargs)
         # define the attention mask for future prediction
@@ -200,10 +205,16 @@ class HindsightPreferenceLearning(Algorithm):
     def get_z_distribution(self, logits):
         if self.discrete:
             logits = logits.reshape(*logits.shape[:-1], self.discrete_group, -1)
-            return torch.distributions.Independent(
-                torch.distributions.OneHotCategoricalStraightThrough(logits=logits),
-                reinterpreted_batch_ndims=1
-            )
+            if self.gumbel_softmax:
+                return torch.distributions.Independent(
+                    OneHotCategoricalSTGumbelSoftmax(self.temperature, logits=logits),
+                    reinterpreted_batch_ndims=1
+                )
+            else:
+                return torch.distributions.Independent(
+                    torch.distributions.OneHotCategoricalStraightThrough(logits=logits),
+                    reinterpreted_batch_ndims=1
+                )
         else:
             mean, logstd = logits.chunk(2, dim=-1)
             return torch.distributions.Independent(

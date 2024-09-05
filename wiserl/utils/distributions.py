@@ -3,8 +3,8 @@ from typing import Any, Dict, Optional, Sequence, Union
 
 import numpy as np
 import torch
-from torch.distributions import Normal
-
+from torch.distributions import Normal, OneHotCategorical
+from torch.distributions.utils import clamp_probs
 
 class TanhNormal(Normal):
     def __init__(self,
@@ -40,3 +40,32 @@ class TanhNormal(Normal):
     @property
     def tanh_mean(self):
         return torch.tanh(self.mean)
+
+
+class OneHotCategoricalSTGumbelSoftmax(OneHotCategorical):
+    r"""
+    Creates a reparameterizable :class:`OneHotCategorical` distribution based on the straight-
+    through gumbel-softmax estimator from [1].
+
+    [1] Categorical Reparametrization with Gumbel-Softmax
+    (Jang et al, 2017)
+    """
+    has_rsample = True
+    
+    def __init__(self, temperature, probs=None, logits=None, validate_args=None):
+        super().__init__(probs, logits, validate_args=validate_args)
+        self.temperature = temperature
+    
+    def gumbel_softmax_sample(self, sample_shape=torch.Size()):
+        shape = self._extended_shape(sample_shape)
+        uniforms = clamp_probs(
+            torch.rand(shape, dtype=self.logits.dtype, device=self.logits.device)
+        )
+        gumbels = -((-(uniforms.log())).log())
+        y = self.logits + gumbels
+        return torch.nn.functional.softmax(y / self.temperature, dim=-1)
+
+    def rsample(self, sample_shape=torch.Size()):
+        samples = self.sample(sample_shape)
+        gumbel_softmax_samples = self.gumbel_softmax_sample(sample_shape)
+        return samples + (gumbel_softmax_samples - gumbel_softmax_samples.detach())
