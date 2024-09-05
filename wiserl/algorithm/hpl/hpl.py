@@ -16,7 +16,7 @@ from wiserl.module.net.attention.gpt2 import GPT2
 from wiserl.module.net.mlp import MLP
 from wiserl.utils.functional import expectile_regression
 from wiserl.utils.misc import make_target, sync_target
-from wiserl.utils.distributions import RelaxedOneHotCategorical
+from wiserl.utils.distributions import OneHotCategoricalSTGumbelSoftmax
 
 
 class Decoder(nn.Module):
@@ -207,7 +207,7 @@ class HindsightPreferenceLearning(Algorithm):
             logits = logits.reshape(*logits.shape[:-1], self.discrete_group, -1)
             if self.gumbel_softmax:
                 return torch.distributions.Independent(
-                    RelaxedOneHotCategorical(self.temperature, logits=logits),
+                    OneHotCategoricalSTGumbelSoftmax(self.temperature, logits=logits),
                     reinterpreted_batch_ndims=1
                 )
             else:
