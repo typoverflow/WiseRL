@@ -16,7 +16,6 @@ from wiserl.module.net.attention.gpt2 import GPT2
 from wiserl.module.net.mlp import MLP
 from wiserl.utils.functional import expectile_regression
 from wiserl.utils.misc import make_target, sync_target
-from wiserl.utils.distributions import RelaxedOneHotCategorical
 
 
 class Decoder(nn.Module):
@@ -63,7 +62,6 @@ class HindsightPreferenceLearning(Algorithm):
         z_dim: int = 64,
         prior_sample: int = 5,
         kl_loss_coef: float = 1.0,
-        kl_balance_coef: float = 0.8,
         reg_coef: float = 0.01,
         vae_steps: int = 100000,
         prior_steps: int = 50000,
@@ -72,8 +70,6 @@ class HindsightPreferenceLearning(Algorithm):
         stoc_encoding: bool = True,
         discrete: bool = True,
         discrete_group: int = 8,
-        gumbel_softmax: bool = False,
-        temperature: float = 1.0,
         **kwargs
     ):
         self.expectile = expectile
@@ -86,7 +82,6 @@ class HindsightPreferenceLearning(Algorithm):
         self.z_dim = z_dim
         self.prior_sample = prior_sample
         self.kl_loss_coef = kl_loss_coef
-        self.kl_balance_coef = kl_balance_coef
         self.reg_coef = reg_coef
         self.vae_steps = vae_steps
         self.prior_steps = prior_steps
@@ -94,8 +89,6 @@ class HindsightPreferenceLearning(Algorithm):
         self.stoc_encoding = stoc_encoding
         self.discrete = discrete
         self.discrete_group = discrete_group
-        self.gumbel_softmax = gumbel_softmax
-        self.temperature = temperature
         self.rm_label = rm_label
         super().__init__(*args, **kwargs)
         # define the attention mask for future prediction
@@ -207,16 +200,10 @@ class HindsightPreferenceLearning(Algorithm):
     def get_z_distribution(self, logits):
         if self.discrete:
             logits = logits.reshape(*logits.shape[:-1], self.discrete_group, -1)
-            if self.gumbel_softmax:
-                return torch.distributions.Independent(
-                    RelaxedOneHotCategorical(self.temperature, logits=logits),
-                    reinterpreted_batch_ndims=1
-                )
-            else:
-                return torch.distributions.Independent(
-                    torch.distributions.OneHotCategoricalStraightThrough(logits=logits),
-                    reinterpreted_batch_ndims=1
-                )
+            return torch.distributions.Independent(
+                torch.distributions.OneHotCategoricalStraightThrough(logits=logits),
+                reinterpreted_batch_ndims=1
+            )
         else:
             mean, logstd = logits.chunk(2, dim=-1)
             return torch.distributions.Independent(
@@ -226,21 +213,12 @@ class HindsightPreferenceLearning(Algorithm):
     
     def get_z_default_distribution(self):
         if self.discrete:
-            if self.gumbel_softmax:
-                return torch.distributions.Independent(
-                    RelaxedOneHotCategorical(
-                        self.temperature,
-                        logits=torch.zeros([self.discrete_group, self.z_dim // self.discrete_group], device=self.device)
-                    ),
-                    reinterpreted_batch_ndims=1
-                )
-            else:
-                return torch.distributions.Independent(
-                    torch.distributions.OneHotCategoricalStraightThrough(
-                        logits=torch.zeros([self.discrete_group, self.z_dim // self.discrete_group], device=self.device)
-                    ),
-                    reinterpreted_batch_ndims=1
-                )
+            return torch.distributions.Independent(
+                torch.distributions.OneHotCategoricalStraightThrough(
+                    logits=torch.zeros([self.discrete_group, self.z_dim // self.discrete_group], device=self.device)
+                ),
+                reinterpreted_batch_ndims=1
+            )
         else:
             return torch.distributions.Independent(
                 torch.distributions.Normal(
@@ -275,9 +253,17 @@ class HindsightPreferenceLearning(Algorithm):
     def pretrain_step(self, batches, step: int, total_steps: int):
         unlabel_batch, pref_batch, rl_batch = batches
         assert step <= self.reward_steps + self.vae_steps + self.prior_steps, "pretrain step overflow"
-        if step < self.vae_steps + self.prior_steps:
+        if step < self.vae_steps:
             return self.update_vae(
                 step=step,
+                obs=unlabel_batch["obs"],
+                action=unlabel_batch["action"],
+                timestep=unlabel_batch["timestep"],
+                mask=unlabel_batch["mask"],
+            )
+        elif step < self.vae_steps + self.prior_steps:
+            return self.update_prior(
+                step=step-self.vae_steps,
                 obs=unlabel_batch["obs"],
                 action=unlabel_batch["action"],
                 timestep=unlabel_batch["timestep"],
@@ -434,6 +420,45 @@ class HindsightPreferenceLearning(Algorithm):
         recon_loss = recon_loss.sum(-1).mean()
 
         # KL divergence
+        posterior_kl_loss = torch.distributions.kl.kl_divergence(
+            self.get_z_distribution(posterior_out),
+            self.get_z_default_distribution(),
+        ).mean()
+
+        self.optim["future_encoder"].zero_grad()
+        self.optim["future_proj"].zero_grad()
+        self.optim["decoder"].zero_grad()
+        (recon_loss + self.kl_loss_coef * posterior_kl_loss).backward()
+        self.optim["future_encoder"].step()
+        self.optim["future_proj"].step()
+        self.optim["decoder"].step()
+
+        ret = {
+            "loss/recon_loss": recon_loss.item(),
+            "loss/posterior_kl_loss": posterior_kl_loss.item(),
+        }
+        if self.discrete:
+            ret.update({
+                "info/post_std": z_posterior_dist.base_dist.probs.std(-1).mean().item(),
+            })
+        else:
+            ret.update({
+                "info/post_std": z_posterior_dist.base_dist.stddev.mean().item(),
+            })
+        return ret
+    
+    def update_prior(self, step: int, obs: torch.Tensor, action: torch.Tensor, timestep: torch.Tensor, mask: torch.Tensor):
+        obs_action = torch.concat([obs, action], dim=-1)
+        posterior_out = self.network.future_encoder(
+            inputs=obs_action,
+            timesteps=None, # here we don't use the timestep from dataset, but use the default `np.arange(len)`
+            attention_mask=self.future_attention_mask,
+            key_padding_mask=(1-mask).squeeze(-1).bool(),
+            do_embedding=True
+        )
+        posterior_out = self.network.future_proj(posterior_out)
+
+        # KL divergence
         prior_out = self.network.prior(obs_action)
         z_prior_dist = self.get_z_distribution(prior_out)
         prior_kl_loss = torch.distributions.kl.kl_divergence(
@@ -448,30 +473,22 @@ class HindsightPreferenceLearning(Algorithm):
         self.optim["future_encoder"].zero_grad()
         self.optim["future_proj"].zero_grad()
         self.optim["decoder"].zero_grad()
-        self.optim["prior"].zero_grad()
-        if step <= self.vae_steps:
-            (recon_loss + self.kl_loss_coef * posterior_kl_loss).backward()
-        else:
-            prior_kl_loss.backward()
+        prior_kl_loss.backward()
         self.optim["future_encoder"].step()
         self.optim["future_proj"].step()
         self.optim["decoder"].step()
-        self.optim["prior"].step()
 
         ret = {
-            "loss/recon_loss": recon_loss.item(),
             "loss/prior_kl_loss": prior_kl_loss.item(),
             "loss/posterior_kl_loss": posterior_kl_loss.item(),
         }
         if self.discrete:
             ret.update({
                 "info/prior_std": z_prior_dist.base_dist.probs.std(-1).mean().item(),
-                "info/post_std": z_posterior_dist.base_dist.probs.std(-1).mean().item(),
             })
         else:
             ret.update({
                 "info/prior_std": z_prior_dist.base_dist.stddev.mean().item(),
-                "info/post_std": z_posterior_dist.base_dist.stddev.mean().item(),
             })
         return ret
 
