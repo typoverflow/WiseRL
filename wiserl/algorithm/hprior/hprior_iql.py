@@ -23,6 +23,7 @@ class Hindsight_PRIOR_IQL(OracleIQL):
         discount: float = 0.99,
         tau: float = 0.005,
         target_freq: int = 1,
+        intensity: float = 1.0,
         reward_reg: float = 0.0,
         max_seq_len: int = 100,
         world_steps: int = 50000,
@@ -41,6 +42,7 @@ class Hindsight_PRIOR_IQL(OracleIQL):
             target_freq=target_freq,
             **kwargs
         )
+        self.intensity = intensity
         self.reward_reg = reward_reg
         self.prior_coef = prior_coef
         self.world_steps = world_steps
@@ -154,15 +156,24 @@ class Hindsight_PRIOR_IQL(OracleIQL):
         action = torch.concat([action_1, action_2], dim=0)
         r = torch.concat([r1, r2], dim=1)
         predicted_return = r.sum(dim=2)
+        predicted_return1 = r1.sum(dim=2)
+        predicted_return2 = r2.sum(dim=2)
+        predicted_mean_reward1 = r1.mean(dim=2)
+        predicted_mean_reward2 = r2.mean(dim=2)
         _, attentions = self.network.world(obs, action, None)
         # get last attentions -> [F_B, num_layers, 2 * F_S]
         attentions = torch.stack([attn[:, -1] for attn in attentions], dim=1)
         # alpha = 1/L * sum_{l=1}^{L} (attn_{s_t}^l + attn_{a_t}^l) -> [F_B, F_S]
         attentions = attentions.reshape(*attentions.shape[:-1], -1, 2).sum(dim=-1)
         prior_importance = attentions.mean(dim=1)
+        prior_importance1, prior_importance2 = torch.chunk(prior_importance, 2, dim=0)
         r_target = prior_importance * predicted_return
         r_target = r_target.unsqueeze(-1)
-        prior_loss = self.prior_criterion(r, r_target).mean()
+        r_target1 = self.intensity * predicted_mean_reward2 + (self.intensity - 1) * predicted_mean_reward1 + self.intensity * prior_importance1 * (predicted_return1 - predicted_return2)
+        r_target2 = self.intensity * predicted_mean_reward1 + (self.intensity - 1) * predicted_mean_reward2 + self.intensity * prior_importance2 * (predicted_return2 - predicted_return1)
+        r_target1, r_target2 = r_target1.unsqueeze(-1), r_target2.unsqueeze(-1)
+        # prior_loss = self.prior_criterion(r, r_target).mean()
+        prior_loss = (self.prior_criterion(r1, r_target1).mean() + self.prior_criterion(r2, r_target2).mean()) / 2
         with torch.no_grad():
             reward_accuracy = ((logits > 0) == torch.round(labels)).float().mean()
 

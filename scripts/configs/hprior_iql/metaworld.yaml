@@ -3,6 +3,7 @@ algorithm:
   beta: 0.3333
   expectile: 0.75
   max_exp_clip: 100.0
+  intensity: 1.0
   reward_reg: 0.0
   max_seq_len: 25
   world_steps: 10000
