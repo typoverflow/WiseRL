@@ -10,7 +10,7 @@ algorithm:
   z_dim: 128 # [128]
   prior_sample: 20
   vae_steps: 200000 # [250k, 200k]
-  prior_steps: 400000 # [250k, 200k]
+  prior_steps: 100000 # [250k, 200k]
   reward_steps: 100000 # [20k]
   kl_loss_coef: 0.001 # [0.5, 5.0]
   reg_coef: 0.0
@@ -38,6 +38,9 @@ optim:
   default:
     class: Adam
     lr: 0.0003
+  prior:
+    class: Adam
+    lr: 0.001
 
 network:
   encoder:
@@ -108,7 +111,7 @@ rl_dataloader:
 trainer:
   env_freq: null
   rm_label: true
-  rm_steps: 700000
+  rm_steps: 400000
   rl_steps: 1000000
   log_freq: 500
   profile_freq: 500

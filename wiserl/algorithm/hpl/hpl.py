@@ -253,17 +253,9 @@ class HindsightPreferenceLearning(Algorithm):
     def pretrain_step(self, batches, step: int, total_steps: int):
         unlabel_batch, pref_batch, rl_batch = batches
         assert step <= self.reward_steps + self.vae_steps + self.prior_steps, "pretrain step overflow"
-        if step < self.vae_steps:
+        if step < self.vae_steps + self.prior_steps:
             return self.update_vae(
                 step=step,
-                obs=unlabel_batch["obs"],
-                action=unlabel_batch["action"],
-                timestep=unlabel_batch["timestep"],
-                mask=unlabel_batch["mask"],
-            )
-        elif step < self.vae_steps + self.prior_steps:
-            return self.update_prior(
-                step=step-self.vae_steps,
                 obs=unlabel_batch["obs"],
                 action=unlabel_batch["action"],
                 timestep=unlabel_batch["timestep"],
@@ -420,45 +412,6 @@ class HindsightPreferenceLearning(Algorithm):
         recon_loss = recon_loss.sum(-1).mean()
 
         # KL divergence
-        posterior_kl_loss = torch.distributions.kl.kl_divergence(
-            self.get_z_distribution(posterior_out),
-            self.get_z_default_distribution(),
-        ).mean()
-
-        self.optim["future_encoder"].zero_grad()
-        self.optim["future_proj"].zero_grad()
-        self.optim["decoder"].zero_grad()
-        (recon_loss + self.kl_loss_coef * posterior_kl_loss).backward()
-        self.optim["future_encoder"].step()
-        self.optim["future_proj"].step()
-        self.optim["decoder"].step()
-
-        ret = {
-            "loss/recon_loss": recon_loss.item(),
-            "loss/posterior_kl_loss": posterior_kl_loss.item(),
-        }
-        if self.discrete:
-            ret.update({
-                "info/post_std": z_posterior_dist.base_dist.probs.std(-1).mean().item(),
-            })
-        else:
-            ret.update({
-                "info/post_std": z_posterior_dist.base_dist.stddev.mean().item(),
-            })
-        return ret
-    
-    def update_prior(self, step: int, obs: torch.Tensor, action: torch.Tensor, timestep: torch.Tensor, mask: torch.Tensor):
-        obs_action = torch.concat([obs, action], dim=-1)
-        posterior_out = self.network.future_encoder(
-            inputs=obs_action,
-            timesteps=None, # here we don't use the timestep from dataset, but use the default `np.arange(len)`
-            attention_mask=self.future_attention_mask,
-            key_padding_mask=(1-mask).squeeze(-1).bool(),
-            do_embedding=True
-        )
-        posterior_out = self.network.future_proj(posterior_out)
-
-        # KL divergence
         prior_out = self.network.prior(obs_action)
         z_prior_dist = self.get_z_distribution(prior_out)
         prior_kl_loss = torch.distributions.kl.kl_divergence(
@@ -473,22 +426,30 @@ class HindsightPreferenceLearning(Algorithm):
         self.optim["future_encoder"].zero_grad()
         self.optim["future_proj"].zero_grad()
         self.optim["decoder"].zero_grad()
-        prior_kl_loss.backward()
+        self.optim["prior"].zero_grad()
+        if step <= self.vae_steps:
+            (recon_loss + self.kl_loss_coef * posterior_kl_loss).backward()
+        else:
+            prior_kl_loss.backward()
         self.optim["future_encoder"].step()
         self.optim["future_proj"].step()
         self.optim["decoder"].step()
+        self.optim["prior"].step()
 
         ret = {
+            "loss/recon_loss": recon_loss.item(),
             "loss/prior_kl_loss": prior_kl_loss.item(),
             "loss/posterior_kl_loss": posterior_kl_loss.item(),
         }
         if self.discrete:
             ret.update({
                 "info/prior_std": z_prior_dist.base_dist.probs.std(-1).mean().item(),
+                "info/post_std": z_posterior_dist.base_dist.probs.std(-1).mean().item(),
             })
         else:
             ret.update({
                 "info/prior_std": z_prior_dist.base_dist.stddev.mean().item(),
+                "info/post_std": z_posterior_dist.base_dist.stddev.mean().item(),
             })
         return ret
 
