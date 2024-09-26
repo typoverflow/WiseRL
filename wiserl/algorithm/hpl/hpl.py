@@ -12,7 +12,6 @@ import torch.nn as nn
 import wiserl.module
 from wiserl.algorithm.base import Algorithm
 from wiserl.module.actor import DeterministicActor, GaussianActor
-from wiserl.module.encoder_decoder import MLPEncDec
 from wiserl.module.net.attention.gpt2 import GPT2
 from wiserl.module.net.mlp import MLP
 from wiserl.utils.functional import expectile_regression
@@ -69,6 +68,8 @@ class HindsightPreferenceLearning(Algorithm):
         rm_label: bool = True,
         reward_steps: int = 100000,
         stoc_encoding: bool = True,
+        discrete: bool = True,
+        discrete_group: int = 8,
         **kwargs
     ):
         self.expectile = expectile
@@ -86,13 +87,14 @@ class HindsightPreferenceLearning(Algorithm):
         self.vae_steps = vae_steps
         self.reward_steps = reward_steps
         self.stoc_encoding = stoc_encoding
+        self.discrete = discrete
+        self.discrete_group = discrete_group
         self.rm_label = rm_label
         super().__init__(*args, **kwargs)
         # define the attention mask for future prediction
         causal_mask = torch.tril(torch.ones([seq_len, seq_len]), diagonal=-1).bool()
         future_mask = torch.triu(torch.ones([seq_len, seq_len]), diagonal=future_len+1).bool()
         self.future_attention_mask = torch.bitwise_or(causal_mask, future_mask).to(self.device)
-        # self.vae_causal_mask = torch.tril(torch.ones([future_len, future_len]), diagonal=-1).bool().to(self.device)
         self.reward_criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
 
     def setup_network(self, network_kwargs) -> None:
@@ -110,11 +112,9 @@ class HindsightPreferenceLearning(Algorithm):
             causal=False,
             seq_len=self.seq_len
         )
-        future_proj = GaussianActor(
+        future_proj = MLP(
             input_dim=enc_kwargs["embed_dim"],
-            output_dim=self.z_dim,
-            reparameterize=True,
-            conditioned_logstd=True
+            output_dim=self.z_dim if self.discrete else 2*self.z_dim
         )
         dec_kwargs = network_kwargs["decoder"]
         decoder = Decoder(
@@ -126,11 +126,9 @@ class HindsightPreferenceLearning(Algorithm):
             hidden_dims=dec_kwargs["hidden_dims"]
         )
         prior_kwargs = network_kwargs["prior"]
-        prior = GaussianActor(
+        prior = MLP(
             input_dim=self.obs_dim+self.action_dim,
-            output_dim=self.z_dim,
-            reparameterize=True,
-            conditioned_logstd=True,
+            output_dim=self.z_dim if self.discrete else 2*self.z_dim,
             hidden_dims=prior_kwargs["hidden_dims"]
         )
         reward_act = network_kwargs["reward"].pop("reward_act")
@@ -193,9 +191,47 @@ class HindsightPreferenceLearning(Algorithm):
         obs, action = batch["obs"], batch["action"]
         repeated_obs_action = torch.concat([obs, action], dim=-1)
         repeated_obs_action = repeated_obs_action.repeat([self.prior_sample, ] + [1,]*len(repeated_obs_action.shape))
-        z_prior, *_ = self.network.prior.sample(repeated_obs_action, deterministic=False)
+        repeated_out = self.network.prior(repeated_obs_action)
+        z_prior_dist = self.get_z_distribution(repeated_out)
+        z_prior = self.get_z_sample(z_prior_dist, reparameterize=False, deterministic=False)
         reward = self.network.reward(torch.concat([repeated_obs_action, z_prior], dim=-1)).mean(dim=0)
         return reward.detach()
+
+    def get_z_distribution(self, logits):
+        if self.discrete:
+            logits = logits.reshape(*logits.shape[:-1], self.discrete_group, -1)
+            return torch.distributions.Independent(
+                torch.distributions.OneHotCategoricalStraightThrough(logits=logits),
+                reinterpreted_batch_ndims=1
+            )
+        else:
+            mean, logstd = logits.chunk(2, dim=-1)
+            return torch.distributions.Independent(
+                torch.distributions.Normal(mean, logstd.exp()),
+                reinterpreted_batch_ndims=1
+            )
+
+    def get_z_sample(self, dist, reparameterize=False, deterministic=False):
+        if self.discrete:
+            if deterministic:
+                sample = dist.base_dist.probs
+                onehot = torch.eye(sample.shape[-1]).to(sample.device)
+                sample = onehot[sample.argmax(dim=-1), :]
+            else:
+                if reparameterize:
+                    sample = dist.rsample()
+                else:
+                    sample = dist.sample()
+            sample = sample.reshape(*sample.shape[:-2], -1)
+        else:
+            if deterministic:
+                sample = dist.mean
+            else:
+                if reparameterize:
+                    sample = dist.rsample()
+                else:
+                    sample = dist.sample()
+        return sample
 
     def pretrain_step(self, batches, step: int, total_steps: int):
         unlabel_batch, pref_batch, rl_batch = batches
@@ -284,18 +320,22 @@ class HindsightPreferenceLearning(Algorithm):
         obs_action_2 = torch.concat([obs_2, action_2], dim=-1)
         obs_action_total = torch.concat([obs_action_1, obs_action_2], dim=0)
         with torch.no_grad():
-            z_posterior, _, info = self.network.future_proj.sample(
-                self.network.future_encoder(
-                    inputs=obs_action_total,
-                    timesteps=None, # consistent with vae training
-                    attention_mask=self.future_attention_mask,
-                    do_embedding=True
-                ),
-                deteriministic=not self.stoc_encoding
+            # sample from posterior z distribution
+            posterior_out = self.network.future_encoder(
+                inputs=obs_action_total,
+                timesteps=None, # consistent with vae training
+                attention_mask=self.future_attention_mask,
+                do_embedding=True
             )
+            posterior_out = self.network.future_proj(posterior_out)
+            z_posterior_dist = self.get_z_distribution(posterior_out)
+            z_posterior = self.get_z_sample(z_posterior_dist, reparameterize=False, deterministic=not self.stoc_encoding)
+            # sample from prior z distribution for regularization
             obs_action_extra = torch.concat([extra_obs, extra_action], dim=-1)
             repeated_obs_action_extra = obs_action_extra.repeat([self.prior_sample, 1, 1])
-            z_prior, _, info = self.network.prior.sample(repeated_obs_action_extra, deterministic=False)
+            repeated_prior_out = self.network.prior(repeated_obs_action_extra)
+            z_prior_dist = self.get_z_distribution(repeated_prior_out)
+            z_prior = self.get_z_sample(z_prior_dist, reparameterize=False, deterministic=False)
         # cross entropy loss
         reward_total = self.network.reward(torch.concat([obs_action_total, z_posterior], dim=-1))
         r1, r2 = torch.chunk(reward_total, 2, dim=0)
@@ -325,21 +365,16 @@ class HindsightPreferenceLearning(Algorithm):
     def update_vae(self, obs: torch.Tensor, action: torch.Tensor, timestep: torch.Tensor, mask: torch.Tensor):
         B, L, *_ = obs.shape
         obs_action = torch.concat([obs, action], dim=-1)
-        out = self.network.future_encoder(
+        posterior_out = self.network.future_encoder(
             inputs=obs_action,
             timesteps=None, # here we don't use the timestep from dataset, but use the default `np.arange(len)`
             attention_mask=self.future_attention_mask,
             key_padding_mask=(1-mask).squeeze(-1).bool(),
             do_embedding=True
         )
-        z_posterior, _, info = self.network.future_proj.sample(out, deterministic=False, return_mean_logstd=True)
-        z_mean, z_logstd = info["mean"], info["logstd"]
-
-        def compute_kl_loss(mean_post, logstd_post, mean_prior, logstd_prior):
-            var_post = (2*logstd_post).exp()
-            var_prior = (2*logstd_prior).exp()
-            return logstd_prior - logstd_post + (var_post + (mean_post - mean_prior).square()) / (2*var_prior) - 0.5
-
+        posterior_out = self.network.future_proj(posterior_out)
+        z_posterior_dist = self.get_z_distribution(posterior_out)
+        z_posterior = self.get_z_sample(z_posterior_dist, reparameterize=True, deterministic=False)
         # select the time index
         num_select = B * 4
         x = torch.randint(0, L, [num_select, ]).to(self.device)
@@ -356,13 +391,20 @@ class HindsightPreferenceLearning(Algorithm):
         )
 
         recon_loss = torch.nn.functional.mse_loss(pred_obs_action, target_obs_action, reduction="none")
-        recon_loss = recon_loss.mean()
+        recon_loss = recon_loss.sum(-1).mean()
 
         # KL divergence
-        z_prior_mean, z_prior_logstd = self.network.prior.forward(obs_action)
-        prior_kl_loss = compute_kl_loss(z_mean.detach(), z_logstd.detach(), z_prior_mean, z_prior_logstd).mean()
-        post_kl_loss = compute_kl_loss(z_mean, z_logstd, z_prior_mean.detach(), z_prior_logstd.detach()).mean()
-        kl_loss = self.kl_balance_coef * prior_kl_loss + (1-self.kl_balance_coef) * post_kl_loss
+        prior_out = self.network.prior(obs_action)
+        z_prior_dist = self.get_z_distribution(prior_out)
+        prior_kl_loss = torch.distributions.kl.kl_divergence(
+            self.get_z_distribution(posterior_out.detach()),
+            self.get_z_distribution(prior_out)
+        ).mean()
+        posterior_kl_loss = torch.distributions.kl.kl_divergence(
+            self.get_z_distribution(posterior_out),
+            self.get_z_distribution(prior_out.detach())
+        ).mean()
+        kl_loss = self.kl_balance_coef * prior_kl_loss + (1-self.kl_balance_coef) * posterior_kl_loss
 
         self.optim["future_encoder"].zero_grad()
         self.optim["future_proj"].zero_grad()
@@ -374,14 +416,21 @@ class HindsightPreferenceLearning(Algorithm):
         self.optim["decoder"].step()
         self.optim["prior"].step()
 
-        return {
+        ret = {
             "loss/recon_loss": recon_loss.item(),
             "loss/kl_loss": kl_loss.item(),
-            "loss/prior_kl_loss": prior_kl_loss.item(),
-            "loss/post_kl_loss": post_kl_loss.item(),
-            "info/prior_logstd": z_prior_logstd.mean().item(),
-            "info/post_logstd": z_logstd.mean().item(),
         }
+        if self.discrete:
+            ret.update({
+                "info/prior_std": z_prior_dist.base_dist.probs.std(-1).mean().item(),
+                "info/post_std": z_posterior_dist.base_dist.probs.std(-1).mean().item(),
+            })
+        else:
+            ret.update({
+                "info/prior_std": z_prior_dist.base_dist.std.mean().item(),
+                "info/post_std": z_posterior_dist.base_dist.std.mean().item(),
+            })
+        return ret
 
     def load_pretrain(self, path):
         for attr in ["future_encoder", "future_proj", "decoder", "prior", "reward"]:

@@ -1,8 +1,10 @@
 algorithm:
-  class: BTAWAC
+  class: PTAWAC
   beta: 0.3333
   max_exp_clip: 100.0
   reward_reg: 0.0
+  use_weighted_sum: true
+  max_seq_len: 100
   rm_label: true
 
 checkpoint: null
@@ -15,7 +17,7 @@ wandb:
   entity: null
   project: null
 
-env: button-press-v2
+env: hopper-medium-replay-v2
 env_kwargs:
 env_wrapper:
 env_wrapper_kwargs:
@@ -24,16 +26,20 @@ optim:
   default:
     class: Adam
     lr: 0.0003
+  reward:
+    class: AdamW
+    lr: 0.0003
 
 network:
   reward:
-    class: EnsembleMLP
-    ensemble_size: 1
-    hidden_dims: [256, 256, 256]
+    num_layers: 3
+    embed_dim: 256
+    pref_embed_dim: 256
+    num_heads: 1
     reward_act: sigmoid
   actor:
     class: SquashedGaussianActor
-    hidden_dims: [256, 256, 256]
+    hidden_dims: [256, 256]
     reparameterize: false
     conditioned_logstd: false
     logstd_min: -5
@@ -41,27 +47,24 @@ network:
   critic:
     class: Critic
     ensemble_size: 2
-    hidden_dims: [256, 256, 256]
-  value:
-    class: Critic
-    ensemble_size: 1
-    hidden_dims: [256, 256, 256]
+    hidden_dims: [256, 256]
 
 rm_dataset:
-  - class: MetaworldComparisonDataset
-    env: button-press-v2
-    batch_size: 16
+  - class: IPLComparisonOfflineDataset
+    env: hopper-medium-replay-v2
+    batch_size: 8
     segment_length: null
-    capacity: 500
+    mode: human
 rm_dataloader:
   num_workers: 2
   batch_size: null
 
 rl_dataset:
-  - class: MetaworldOfflineDataset
-    env: button-press-v2
-    batch_size: 16
-    capacity: 5000
+  - class: D4RLOfflineDataset
+    env: hopper-medium-replay-v2
+    batch_size: 256
+    mode: trajectory
+    segment_length: 20
 rl_dataloader:
   num_workers: 2
   batch_size: null
@@ -69,28 +72,32 @@ rl_dataloader:
 trainer:
   env_freq: null
   rm_label: true
-  rm_steps: 50000
-  rl_steps: 500000
+  rm_steps: 100000
+  rl_steps: 1000000
   log_freq: 500
   profile_freq: 500
-  eval_freq: 10000
+  eval_freq: 5000
 
 rm_eval:
   function: eval_reward_model
   eval_dataset_kwargs:
-    class: MetaworldComparisonDataset
-    env: button-press-v2
+    class: IPLComparisonOfflineDataset
+    env: hopper-medium-replay-v2
     batch_size: 32
-    segment_length: null
-    capacity: 500
+    mode: human
+    eval: false
 rl_eval:
   function: eval_offline
-  num_ep: 20
+  num_ep: 10
   deterministic: true
 
 schedulers:
   actor:
     class: CosineAnnealingLR
-    T_max: 500000
+    T_max: 1000000
+  reward:
+    warmup_steps: 10000
+    max_steps: 100000
+
 
 processor: null

@@ -67,7 +67,7 @@ class BTAWAC(OracleAWAC):
     def select_reward(self, batch, deterministic=False):
         obs, action = batch["obs"], batch["action"]
         reward = self.network.reward(torch.concat([obs, action], dim=-1))
-        return reward[0].detach()
+        return reward.mean(0).detach()
 
     def pretrain_step(self, batches, step: int, total_steps: int) -> Dict:
         batch = batches[0]
@@ -87,8 +87,8 @@ class BTAWAC(OracleAWAC):
         r1, r2 = r1.reshape(E, F_B, F_S, 1), r2.reshape(E, F_B, F_S, 1)
         logits = r2.sum(dim=2) - r1.sum(dim=2)
         labels = batch["label"].float().unsqueeze(0).expand_as(logits)
-        reward_loss = self.reward_criterion(logits, labels).mean()
-        reg_loss = (r1**2).mean() + (r2**2).mean()
+        reward_loss = self.reward_criterion(logits, labels).sum(0).mean()
+        reg_loss = (r1**2).sum(0).mean() + (r2**2).sum(0).mean()
         with torch.no_grad():
             reward_accuracy = ((logits > 0) == torch.round(labels)).float().mean()
 

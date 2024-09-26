@@ -234,7 +234,7 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
     @torch.no_grad()
     def relabel_reward(self, agent):
         assert hasattr(agent, "select_reward"), f"Agent {agent} must support relabel_reward!"
-        bs = 256
+        bs = 64
         for i_batch in range((self.data_size-1) // bs + 1):
             idx = np.arange(i_batch*bs, min((i_batch+1)*bs, self.data_size))
             batch = {
