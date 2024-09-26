@@ -1,0 +1,110 @@
+algorithm:
+  class: Discriminator_PRIOR_IQL
+  beta: 0.3333
+  expectile: 0.75
+  max_exp_clip: 100.0
+  reward_reg: 0.0
+  max_seq_len: 25
+  bc_steps: 20000
+  discriminator_steps: 20000
+  prior_coef: 1000
+  rm_label: true
+
+checkpoint: null
+seed: 0
+name: default
+debug: false
+device: null
+wandb:
+  activate: false
+  entity: null
+  project: null
+
+env: button-press-v2
+env_kwargs:
+env_wrapper:
+env_wrapper_kwargs:
+
+optim:
+  default:
+    class: Adam
+    lr: 0.0003
+
+network:
+  world:
+    embed_dim: 256
+    num_layers: 3
+    num_heads:  1
+  reward:
+    class: EnsembleMLP
+    ensemble_size: 1
+    hidden_dims: [256, 256, 256]
+    reward_act: identity
+    ortho_init: true
+  actor:
+    class: SquashedGaussianActor
+    hidden_dims: [256, 256, 256]
+    reparameterize: false
+    conditioned_logstd: false
+    logstd_min: -5
+    logstd_max: 2
+  critic:
+    class: Critic
+    ensemble_size: 2
+    hidden_dims: [256, 256, 256]
+  value:
+    class: Critic
+    ensemble_size: 1
+    hidden_dims: [256, 256, 256]
+
+rm_dataset:
+  - class: MetaworldOfflineDataset
+    env: button-press-v2
+    batch_size: 16
+    capacity: 5000
+  - class: MetaworldComparisonDataset
+    env: button-press-v2
+    batch_size: 16
+    segment_length: null
+    capacity: 500
+rm_dataloader:
+  num_workers: 2
+  batch_size: null
+
+rl_dataset:
+  - class: MetaworldOfflineDataset
+    env: button-press-v2
+    batch_size: 16
+    capacity: 5000
+rl_dataloader:
+  num_workers: 2
+  batch_size: null
+
+trainer:
+  env_freq: null
+  rm_label: true
+  rm_steps: 90000
+  rl_steps: 500000
+  log_freq: 500
+  profile_freq: 500
+  eval_freq: 10000
+
+rm_eval:
+  function: eval_world_model_and_reward_model
+  eval_dataset_kwargs:
+    class: MetaworldComparisonDataset
+    env: button-press-v2
+    batch_size: 32
+    segment_length: null
+    capacity: 500
+rl_eval:
+  function: eval_offline
+  num_ep: 20
+  deterministic: true
+
+schedulers:
+  actor:
+    class: CosineAnnealingLR
+    T_max: 500000
+
+processor: null

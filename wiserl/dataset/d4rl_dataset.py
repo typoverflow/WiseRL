@@ -68,6 +68,7 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
                     "obs": self.data["obs"][idxs],
                     "action": self.data["action"][idxs],
                     "next_obs": self.data["next_obs"][idxs],
+                    "next_action": self.data["next_action"][idxs],
                     "reward": self.data["reward"][idxs],
                     "terminal": self.data["terminal"][idxs],
                     "mask": self.data["mask"][idxs]
@@ -105,6 +106,7 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
                         "obs": np.stack([s["obs"] for s in sample], axis=0),
                         "action": np.stack([s["action"] for s in sample], axis=0),
                         "next_obs": np.stack([s["next_obs"] for s in sample], axis=0),
+                        "next_action": np.stack([s["next_action"] for s in sample], axis=0),
                         "reward": np.stack([s["reward"] for s in sample], axis=0),
                         "terminal": np.stack([s["terminal"] for s in sample], axis=0),
                         "return": np.stack([s["return"] for s in sample], axis=0),
@@ -120,6 +122,7 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
         obs_ = []
         next_obs_ = []
         action_ = []
+        next_action_ = []
         reward_ = []
         terminal_ = []
         end_ = []
@@ -132,6 +135,7 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
             obs = dataset["observations"][i].astype(np.float32)
             next_obs = dataset["observations"][i+1].astype(np.float32)
             action = dataset["actions"][i].astype(np.float32)
+            next_action = dataset["actions"][i+1].astype(np.float32)
             reward = dataset["rewards"][i].astype(np.float32)
             terminal = bool(dataset["terminals"][i])
             end = False
@@ -156,6 +160,7 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
             obs_.append(obs)
             next_obs_.append(next_obs)
             action_.append(action)
+            next_action_.append(next_action)
             reward_.append(reward)
             terminal_.append(terminal)
             end_.append(end)
@@ -165,6 +170,7 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
             "obs": np.asarray(obs_),
             "action": np.asarray(action_),
             "next_obs": np.asarray(next_obs_),
+            "next_action": np.asarray(next_action_),
             "reward": np.asarray(reward_)[..., None],
             "terminal": np.asarray(terminal_)[..., None],
             "mask": np.ones([len(obs_), 1], dtype=np.float32),
@@ -224,6 +230,7 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
                 "obs": np.asarray([t["obs"] for t in traj]),
                 "action": np.asarray([t["action"] for t in traj]),
                 "next_obs": np.asarray([t["next_obs"] for t in traj]),
+                "next_action": np.asarray([t["next_action"] for t in traj]),
                 "reward": np.asarray([t["reward"] for t in traj]),
                 "terminal": np.asarray([t["terminal"] for t in traj]),
                 "return": np.asarray([t["return"] for t in traj]),
@@ -241,6 +248,7 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
                 "obs": self.data["obs"][idx],
                 "action": self.data["action"][idx],
                 "next_obs": self.data["next_obs"][idx],
+                "next_action": self.data["next_action"][idx],
                 "mask": self.data["mask"][idx]
             }
             batch = agent.format_batch(batch)
