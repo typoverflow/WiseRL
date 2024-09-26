@@ -11,8 +11,29 @@ import wiserl.algorithm
 from wiserl.env import get_env
 from wiserl.trainer.rmb_offline_trainer import RewardModelBasedOfflineTrainer
 
+def post_init(args):
+    # get the upper level args with string or number values, like {"env": "CartPole-v1"}
+    upper_args = {"<" + k + ">": v for k, v in args.items() if isinstance(v, (str, int, float))}
+    # replace args whose values are "<key>" with the value of the key
+    def _replace(args):
+        if type(args) is dict:
+            final_args = {}
+            for k, v in args.items():
+                if isinstance(v, str) and v in upper_args:
+                    final_args[k] = upper_args[v]
+                else:
+                    final_args[k] = _replace(v)
+            return final_args
+        elif type(args) is list:
+            return [_replace(v) for v in args]
+        elif type(args) is tuple:
+            return tuple([_replace(v) for v in args])
+        else:
+            return args
+    args.update(_replace(args))
+
 if __name__ == "__main__":
-    args = parse_args(convert=False)
+    args = parse_args(convert=False, post_init=post_init)
     name_prefix = f"{args['algorithm']['class']}/{args['name']}/{args['env']}"
     logger = CompositeLogger(
         log_dir=f"./log/{name_prefix}",
