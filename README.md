@@ -13,8 +13,7 @@ python3 scripts/rmb_main.py --config /path/to/config.yaml
 ## Installation
 + clone this repo and install the dependencies
   ```bash
-  git clone https://github.com/typoverflow/WiseRL.git
-  cd WiseRL && pip install -e .
+  pip install -e .
   ```
 + install environment or dataset dependencies
   + for D4RL experiments:
