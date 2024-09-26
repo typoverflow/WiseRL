@@ -5,9 +5,9 @@ algorithm:
   max_exp_clip: 100.0
   reward_reg: 0.0
   max_seq_len: 100
-  bc_steps: 20000
-  discriminator_steps: 20000
-  prior_coef: 1000
+  bc_steps: 15000
+  discriminator_steps: 15000
+  prior_coef: 100
   rm_label: true
 
 checkpoint: null
@@ -85,7 +85,7 @@ rl_dataloader:
 trainer:
   env_freq: null
   rm_label: true
-  rm_steps: 90000
+  rm_steps: 80000
   rl_steps: 500000
   log_freq: 500
   profile_freq: 500

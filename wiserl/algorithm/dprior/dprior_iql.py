@@ -151,9 +151,12 @@ class Discriminator_PRIOR_IQL(OracleIQL):
     def update_discriminator(self, obs_1, obs_2, action_1, action_2, label) -> Dict:
         # obs [F_B, F_S, obs_dim], action [F_B, F_S, action_dim]
         pred_obs1, pred_act1, pred_obs2, pred_act2, pred_label, attentions = self.network.discriminator(obs_1, action_1, obs_2, action_2)
-        discriminator_loss = self.discriminator_criterion(pred_label, label.float()).sum(0).mean()
+        discriminator_loss_1 = self.discriminator_criterion(pred_label, label).sum(0).mean()
+        pred_obs1, pred_act1, pred_obs2, pred_act2, negative_pred_label, attentions = self.network.discriminator(obs_2, action_2, obs_1, action_1)
+        discriminator_loss_2 = self.discriminator_criterion(negative_pred_label, 1 - label).sum(0).mean()
+        discriminator_loss = (discriminator_loss_1 + discriminator_loss_2) / 2
         self.optim["discriminator"].zero_grad()
-        discriminator_loss.backward()
+        discriminator_loss_1.backward()
         self.optim["discriminator"].step()
 
         metrics = {
@@ -183,20 +186,29 @@ class Discriminator_PRIOR_IQL(OracleIQL):
         reg_loss = (r1**2).sum(0).mean() + (r2**2).sum(0).mean()
         # hindsight prior loss by attention weights
         predicted_return1, predicted_return2 = r1.sum(dim=2), r2.sum(dim=2)
-        _, _, _, _, _, attentions = self.network.discriminator(obs_1, action_1, obs_2, action_2)
-        # get last attentions -> [F_B, num_layers, 2 * (F_S + 1)]
-        attentions = torch.stack([attn[:, -1] for attn in attentions], dim=1)
-        # alpha = 1/L * sum_{l=1}^{L} (attn_{s_t}^l + attn_{a_t}^l) -> [F_B, F_S]
-        attentions = attentions.reshape(*attentions.shape[:-1], -1, 2).sum(dim=-1)
-        prior_importance = attentions.mean(dim=1)
-        prior_importance1, prior_importance2 = torch.chunk(prior_importance, 2, dim=1)
-        prior_importance1, prior_importance2 = prior_importance1[:, :-1], prior_importance2[:, :-1]
+        def get_importance(obs_1, action_1, obs_2, action_2):
+            _, _, _, _, _, attentions = self.network.discriminator(obs_1, action_1, obs_2, action_2)
+            # get last attentions -> [F_B, num_layers, 2 * (F_S + 1)]
+            attentions = torch.stack([attn[:, -1] for attn in attentions], dim=1)
+            # alpha = 1/L * sum_{l=1}^{L} (attn_{s_t}^l + attn_{a_t}^l) -> [F_B, F_S]
+            attentions = attentions.reshape(*attentions.shape[:-1], -1, 2).sum(dim=-1)
+            prior_importance = attentions.mean(dim=1)
+            prior_importance1, prior_importance2 = torch.chunk(prior_importance, 2, dim=1)
+            prior_importance1, prior_importance2 = prior_importance1[:, :-1], prior_importance2[:, :-1]
+            return prior_importance1, prior_importance2
+        # swap the sequences for better estimation
+        prior_importance1, prior_importance2 = get_importance(obs_1, action_1, obs_2, action_2)
+        swap_prior_importance2, swap_prior_importance1 = get_importance(obs_2, action_2, obs_1, action_1)
+        # add epsilon to avoid nan
+        epsilon = 1e-6
+        prior_importance1 = prior_importance1 + swap_prior_importance1 + epsilon
+        prior_importance2 = prior_importance2 + swap_prior_importance2 + epsilon
         # normalize the importance
         prior_importance1 = prior_importance1 / prior_importance1.sum(dim=1, keepdim=True)
         prior_importance2 = prior_importance2 / prior_importance2.sum(dim=1, keepdim=True)
-        r_target1 = prior_importance1 * predicted_return1
+        r_target1 = (prior_importance1 * predicted_return1).detach()
         r_target1 = r_target1.unsqueeze(-1)
-        r_target2 = prior_importance2 * predicted_return2
+        r_target2 = (prior_importance2 * predicted_return2).detach()
         r_target2 = r_target2.unsqueeze(-1)
         prior_loss = (self.prior_criterion(r1, r_target1).mean() + self.prior_criterion(r2, r_target2).mean()) / 2
         with torch.no_grad():
