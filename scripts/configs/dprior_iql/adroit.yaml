@@ -5,9 +5,9 @@ algorithm:
   max_exp_clip: 100.0
   reward_reg: 0.0
   max_seq_len: 100
-  bc_steps: 20000
-  discriminator_steps: 20000
-  prior_coef: 1000
+  bc_steps: 15000
+  discriminator_steps: 15000
+  prior_coef: 100
   rm_label: true
 
 checkpoint: null
@@ -31,7 +31,7 @@ optim:
     lr: 0.0003
 
 network:
-  world:
+  discriminator:
     embed_dim: 256
     num_layers: 3
     num_heads:  1
@@ -58,13 +58,13 @@ network:
 
 rm_dataset:
   - class: D4RLOfflineDataset
-    env: pen-cloned-v1
+    env: <env>
     batch_size: 64
     mode: trajectory
     segment_length: 100
     padding_mode: none
   - class: IPLComparisonOfflineDataset
-    env: pen-cloned-v1
+    env: <env>
     batch_size: 8
     mode: human
 rm_dataloader:
@@ -73,7 +73,7 @@ rm_dataloader:
 
 rl_dataset:
   - class: D4RLOfflineDataset
-    env: pen-cloned-v1
+    env: <env>
     batch_size: 256
     mode: transition
     reward_normalize: true
@@ -91,10 +91,10 @@ trainer:
   eval_freq: 5000
 
 rm_eval:
-  function: eval_world_model_and_reward_model
+  function: eval_discriminator_model_and_reward_model
   eval_dataset_kwargs:
     class: IPLComparisonOfflineDataset
-    env: pen-cloned-v1
+    env: <env>
     batch_size: 32
     mode: human
     eval: false

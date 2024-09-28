@@ -122,6 +122,7 @@ class MetaworldOfflineDataset(torch.utils.data.IterableDataset):
                 "obs": self.data["obs"][idxs],
                 "next_obs": self.data["next_obs"][idxs],
                 "action": self.data["action"][idxs],
+                "next_action": self.data["next_action"][idxs],
                 "reward": self.data["reward"][idxs],
                 "terminal": self.data["terminal"][idxs],
                 "mask": mask,
@@ -145,6 +146,7 @@ class MetaworldOfflineDataset(torch.utils.data.IterableDataset):
             "obs": np.stack([data["obs_1"], data["obs_2"]], axis=0).reshape(2*N, L, -1)[:, :-1],
             "next_obs": np.stack([data["obs_1"], data["obs_2"]], axis=0).reshape(2*N, L, -1)[:, 1:],
             "action": np.stack([data["action_1"], data["action_2"]], axis=0).reshape(2*N, L, -1)[:, :-1],
+            "next_action": np.stack([data["action_1"], data["action_2"]], axis=0).reshape(2*N, L, -1)[:, 1:],
         }
         data["terminal"] = np.zeros([2*N, L-1, 1], dtype=np.bool_)
         data["reward"] = np.zeros([2*N, L-1, 1], dtype=np.float32)
@@ -172,6 +174,7 @@ class MetaworldOfflineDataset(torch.utils.data.IterableDataset):
                 "obs": self.data["obs"][idx],
                 "action": self.data["action"][idx],
                 "next_obs": self.data["next_obs"][idx],
+                "next_action": self.data["next_action"][idx],
                 "mask": self.data["mask"][idx]
             }
             batch = agent.format_batch(batch)

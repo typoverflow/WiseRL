@@ -5,9 +5,9 @@ algorithm:
   max_exp_clip: 100.0
   reward_reg: 0.0
   max_seq_len: 25
-  bc_steps: 20000
-  discriminator_steps: 20000
-  prior_coef: 1000
+  bc_steps: 10000
+  discriminator_steps: 30000
+  prior_coef: 10
   rm_label: true
 
 checkpoint: null
@@ -31,7 +31,7 @@ optim:
     lr: 0.0003
 
 network:
-  world:
+  discriminator:
     embed_dim: 256
     num_layers: 3
     num_heads:  1
@@ -59,11 +59,11 @@ network:
 
 rm_dataset:
   - class: MetaworldOfflineDataset
-    env: button-press-v2
+    env: <env>
     batch_size: 16
     capacity: 5000
   - class: MetaworldComparisonDataset
-    env: button-press-v2
+    env: <env>
     batch_size: 16
     segment_length: null
     capacity: 500
@@ -73,7 +73,7 @@ rm_dataloader:
 
 rl_dataset:
   - class: MetaworldOfflineDataset
-    env: button-press-v2
+    env: <env>
     batch_size: 16
     capacity: 5000
 rl_dataloader:
@@ -90,10 +90,10 @@ trainer:
   eval_freq: 10000
 
 rm_eval:
-  function: eval_world_model_and_reward_model
+  function: eval_discriminator_model_and_reward_model
   eval_dataset_kwargs:
     class: MetaworldComparisonDataset
-    env: button-press-v2
+    env: <env>
     batch_size: 32
     segment_length: null
     capacity: 500
