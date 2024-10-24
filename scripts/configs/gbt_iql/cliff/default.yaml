@@ -17,7 +17,7 @@ wandb:
   entity: null
   project: null
 
-env: hopper-medium-replay-v2
+env: CliffWalkingEnv
 env_kwargs:
 env_wrapper:
 env_wrapper_kwargs:
@@ -36,7 +36,7 @@ network:
     # logstd_min: -7
     # logstd_max: 2
     ortho_init: true
-    reward_act: sigmoid
+    reward_act: identity
   actor:
     class: SquashedGaussianActor
     hidden_dims: [256, 256]
@@ -54,42 +54,36 @@ network:
     hidden_dims: [256, 256]
 
 rm_dataset:
-  - class: IPLComparisonOfflineDataset
-    env: <env>
+  - class: CliffWalkingComparisonDataset
     batch_size: 8
-    segment_length: null
-    mode: human
+    path: datasets/cliff/pref/eps_optimal_0.5-num300.npz
 rm_dataloader:
-  num_workers: 2
+  num_workers: 0
   batch_size: null
 
 rl_dataset:
-  - class: D4RLOfflineDataset
-    env: <env>
+  - class: CliffWalkingOfflineDataset
     batch_size: 256
     mode: transition
-    reward_normalize: true
 rl_dataloader:
-  num_workers: 2
+  num_workers: 0
   batch_size: null
 
 trainer:
   env_freq: null
   rm_label: true
   rm_steps: 50000
-  rl_steps: 500000
+  rl_steps: 1000000
   log_freq: 500
   profile_freq: 500
   eval_freq: 5000
 
 rm_eval:
-  function: eval_reward_model
+  function: eval_cliffwalking_rm
   eval_dataset_kwargs:
-    class: IPLComparisonOfflineDataset
-    env: <env>
+    class: CliffWalkingComparisonDataset
     batch_size: 32
-    mode: human
-    eval: false
+    path: datasets/cliff/pref/eps_optimal_0.5-num300.npz
 rl_eval:
   function: eval_offline
   num_ep: 10

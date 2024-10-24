@@ -1,7 +1,7 @@
 algorithm:
   class: GaussianBTIQL
   beta: 0.3333
-  expectile: 0.7
+  expectile: 0.75
   max_exp_clip: 100.0
   reward_std_reg: 0.05
   reward_reg: 0.0
@@ -17,7 +17,7 @@ wandb:
   entity: null
   project: null
 
-env: hopper-medium-replay-v2
+env: pen-cloned-v1
 env_kwargs:
 env_wrapper:
 env_wrapper_kwargs:
@@ -30,16 +30,16 @@ optim:
 network:
   reward:
     class: GaussianActor
-    hidden_dims: [256, 256]
+    hidden_dims: [256, 256, 256]
     reparameterize: true
     conditioned_logstd: true
     # logstd_min: -7
     # logstd_max: 2
     ortho_init: true
-    reward_act: sigmoid
+    reward_act: identity
   actor:
     class: SquashedGaussianActor
-    hidden_dims: [256, 256]
+    hidden_dims: [256, 256, 256]
     reparameterize: false
     conditioned_logstd: false
     logstd_min: -5
@@ -47,11 +47,11 @@ network:
   critic:
     class: Critic
     ensemble_size: 2
-    hidden_dims: [256, 256]
+    hidden_dims: [256, 256, 256]
   value:
     class: Critic
     ensemble_size: 1
-    hidden_dims: [256, 256]
+    hidden_dims: [256, 256, 256]
 
 rm_dataset:
   - class: IPLComparisonOfflineDataset
@@ -76,7 +76,7 @@ rl_dataloader:
 trainer:
   env_freq: null
   rm_label: true
-  rm_steps: 50000
+  rm_steps: 100000
   rl_steps: 500000
   log_freq: 500
   profile_freq: 500
@@ -98,6 +98,6 @@ rl_eval:
 schedulers:
   actor:
     class: CosineAnnealingLR
-    T_max: 1000000
+    T_max: 500000
 
 processor: null
