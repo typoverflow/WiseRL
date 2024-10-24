@@ -270,6 +270,7 @@ class GaussianActor(BaseActor):
         activation: Optional[Union[ModuleType, Sequence[ModuleType]]] = nn.ReLU,
         dropout: Optional[Union[float, Sequence[float]]] = None,
         share_hidden_layer: Union[Sequence[bool], bool] = False,
+        mean_activation: Optional[ModuleType]=None,
     ) -> None:
         super().__init__()
 
@@ -280,6 +281,7 @@ class GaussianActor(BaseActor):
         self.ortho_init = ortho_init
         self.device = device
         self.logstd_hard_clip = logstd_hard_clip
+        self.mean_activation = mean_activation
 
         if fix_logstd is not None:
             self._logstd_is_layer = False
@@ -337,6 +339,8 @@ class GaussianActor(BaseActor):
             logstd = torch.clip(logstd, min=self.logstd_min, max=self.logstd_max)
         else:
             logstd = self.logstd_min + (torch.tanh(logstd)+1)/2*(self.logstd_max - self.logstd_min)
+        if self.mean_activation is not None:
+            mean = self.mean_activation(mean)
         return mean, logstd
 
     def sample(self, obs: torch.Tensor, deterministic: bool=False, return_mean_logstd: bool=False, *args, **kwargs) -> Tuple[torch.Tensor, torch.Tensor, Dict]:

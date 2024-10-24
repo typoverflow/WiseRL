@@ -1,4 +1,5 @@
 import itertools
+from math import log
 import os
 from operator import itemgetter
 from typing import Any, Dict, Optional, Type
@@ -24,6 +25,7 @@ class GaussianBTIQL(OracleIQL):
         discount: float = 0.99,
         tau: float = 0.005,
         target_freq: int = 1,
+        reward_std_reg: float = 0.1,
         reward_reg: float = 0.0,
         rm_label: bool = True,
         **kwargs
@@ -38,6 +40,7 @@ class GaussianBTIQL(OracleIQL):
             target_freq=target_freq,
             **kwargs
         )
+        self.reward_std_reg = reward_std_reg
         self.reward_reg = reward_reg
         self.rm_label = rm_label
         self.obs_dim = self.observation_space.shape[0]
@@ -51,12 +54,12 @@ class GaussianBTIQL(OracleIQL):
             "identity": nn.Identity(),
             "sigmoid": nn.Sigmoid(),
         }.get(network_kwargs["reward"].pop("reward_act"))
-        reward = vars(wiserl.module)[network_kwargs["reward"].pop("class")](
+        self.network["reward"] = vars(wiserl.module)[network_kwargs["reward"].pop("class")](
             input_dim=self.observation_space.shape[0]+self.action_space.shape[0],
             output_dim=1,
+            mean_activation=reward_act,
             **network_kwargs["reward"]
         )
-        self.network["reward"] = nn.Sequential(self.network["encoder"], reward, reward_act)
 
 
     def setup_optimizers(self, optim_kwargs):
@@ -69,10 +72,10 @@ class GaussianBTIQL(OracleIQL):
     def select_action(self, batch, deterministic: bool=True):
         return super().select_action(batch, deterministic)
 
-    def select_reward(self, batch, deterministic=False):
+    def select_reward(self, batch, deterministic=True):
         obs, action = batch["obs"], batch["action"]
-        reward = self.network.reward(torch.concat([obs, action], dim=-1))
-        return reward.mean(0).detach()
+        reward, _, _ = self.network.reward.sample(torch.concat([obs, action], dim=-1), deterministic=deterministic)
+        return reward.detach()
 
     def pretrain_step(self, batches, step: int, total_steps: int) -> Dict:
         batch = batches[0]
@@ -86,26 +89,35 @@ class GaussianBTIQL(OracleIQL):
             batch["action_2"].reshape(-1, self.action_dim)
         ])
         self.network.reward.train()
-        all_reward = self.network.reward(torch.concat([all_obs, all_action], dim=-1))
-        r1, r2 = torch.chunk(all_reward, 2, dim=1)
-        E = r1.shape[0]
-        r1, r2 = r1.reshape(E, F_B, F_S, 1), r2.reshape(E, F_B, F_S, 1)
+        all_reward, _, info = self.network.reward.sample(torch.concat([all_obs, all_action], dim=-1), return_mean_logstd=True)
+        
+        r1, r2 = torch.chunk(all_reward, 2, dim=0)
+        r1, r2 = r1.reshape(F_B, F_S, 1), r2.reshape(F_B, F_S, 1)
         logits = r2.sum(dim=2) - r1.sum(dim=2)
-        labels = batch["label"].float().unsqueeze(0).expand_as(logits)
+        labels = batch["label"].float().expand_as(logits)
         reward_loss = self.reward_criterion(logits, labels).sum(0).mean()
+
+        logstd = info["logstd"]
+        logstd = logstd.reshape(-1, F_S)
+        traj_std = (torch.exp(logstd) ** 2).sum(1) ** 0.5
+        std_loss = -traj_std.mean()
+
         reg_loss = (r1**2).sum(0).mean() + (r2**2).sum(0).mean()
         with torch.no_grad():
             reward_accuracy = ((logits > 0) == torch.round(labels)).float().mean()
 
         self.optim["reward"].zero_grad()
-        (reward_loss + self.reward_reg * reg_loss).backward()
+        (reward_loss + self.reward_std_reg * std_loss + self.reward_reg * reg_loss).backward()
         self.optim["reward"].step()
 
         metrics = {
             "loss/reward_loss": reward_loss.item(),
+            "loss/reward_std_loss": std_loss.item(),
             "loss/reward_reg_loss": reg_loss.item(),
             "misc/reward_acc": reward_accuracy.item(),
-            "misc/reward_value": all_reward.mean().item()
+            "misc/reward_value": all_reward.mean().item(),
+            "misc/reward_std_mean": torch.exp(logstd).mean().item(),
+            "misc/reward_std_std": torch.exp(logstd).std().item()
         }
         return metrics
 

@@ -3,6 +3,7 @@ algorithm:
   beta: 0.3333
   expectile: 0.7
   max_exp_clip: 100.0
+  reward_std_reg: 0.05
   reward_reg: 0.0
   rm_label: true
 
@@ -28,9 +29,13 @@ optim:
 
 network:
   reward:
-    class: EnsembleMLP
-    ensemble_size: 1
+    class: GaussianActor
     hidden_dims: [256, 256]
+    reparameterize: true
+    conditioned_logstd: true
+    # logstd_min: -7
+    # logstd_max: 2
+    ortho_init: true
     reward_act: sigmoid
   actor:
     class: SquashedGaussianActor
@@ -72,7 +77,7 @@ trainer:
   env_freq: null
   rm_label: true
   rm_steps: 50000
-  rl_steps: 1000000
+  rl_steps: 500000
   log_freq: 500
   profile_freq: 500
   eval_freq: 5000
