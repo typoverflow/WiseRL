@@ -50,7 +50,7 @@ network:
 
 rm_dataset:
   - class: IPLComparisonOfflineDataset
-    env: hopper-medium-replay-v2
+    env: <env>
     batch_size: 8
     segment_length: null
     mode: human
@@ -60,7 +60,7 @@ rm_dataloader:
 
 rl_dataset:
   - class: D4RLOfflineDataset
-    env: hopper-medium-replay-v2
+    env: <env>
     batch_size: 256
     mode: transition
     reward_normalize: true
