@@ -81,7 +81,7 @@ rm_eval:
   function: eval_reward_model
   eval_dataset_kwargs:
     class: IPLComparisonOfflineDataset
-    env: hopper-medium-replay-v2
+    env: <env>
     batch_size: 32
     mode: human
     eval: false
