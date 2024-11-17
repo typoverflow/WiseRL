@@ -25,20 +25,58 @@ config_map = {
     'HindsightPreferenceLearning': 'scripts/configs/hpl/discrete/gym.yaml',
 }
 
+# default
+# ckpt_map = {
+#     'BTIQL': {
+#         'hopper-medium-replay-v2': 'log/BTIQL/reward-correlation/hopper-medium-replay-v2/seed0-11-13-19-58-778533/output/final.pt',
+#         # 'hopper-medium-expert-v2': 'log/BTIQL/reward-correlation/hopper-medium-expert-v2/seed0-11-13-23-42-879673/output/final.pt',
+#         'hopper-medium-expert-v2': 'log/BTIQL/reward-correlation-debug/hopper-medium-expert-v2/seed0-11-14-21-03-1268183/output/final.pt',
+#         'walker2d-medium-replay-v2': 'log/BTIQL/reward-correlation/walker2d-medium-replay-v2/seed0-11-14-15-03-950718/output/final.pt',
+#         'walker2d-medium-expert-v2': 'log/BTIQL/reward-correlation/walker2d-medium-expert-v2/seed0-11-14-15-04-953448/output/final.pt',
+#     },
+#     'HindsightPreferenceLearning': {
+#         'hopper-medium-replay-v2': 'log/HindsightPreferenceLearning/reward-correlation/hopper-medium-replay-v2/seed0-11-13-19-58-779067/output/final.pt',
+#         # 'hopper-medium-expert-v2': 'log/HindsightPreferenceLearning/reward-correlation/hopper-medium-expert-v2/seed0-11-13-23-45-881769/output/final.pt',
+#         # 'hopper-medium-expert-v2': 'log/HindsightPreferenceLearning/reward-correlation-debug/hopper-medium-expert-v2/seed0-11-14-17-05-1061573/output/final.pt',
+#         'hopper-medium-expert-v2': 'log/HindsightPreferenceLearning/reward-correlation-debug/hopper-medium-expert-v2/seed0-11-14-17-06-1061908/output/final.pt',
+#         'walker2d-medium-replay-v2': 'log/HindsightPreferenceLearning/reward-correlation/walker2d-medium-replay-v2/seed0-11-14-01-08-882667/output/final.pt',
+#         'walker2d-medium-expert-v2': 'log/HindsightPreferenceLearning/reward-correlation/walker2d-medium-expert-v2/seed0-11-14-02-21-883247/output/final.pt',
+#     },
+# }
+
+# seed 1 2
 ckpt_map = {
     'BTIQL': {
         'hopper-medium-replay-v2': 'log/BTIQL/reward-correlation/hopper-medium-replay-v2/seed0-11-13-19-58-778533/output/final.pt',
-        'hopper-medium-expert-v2': 'log/BTIQL/reward-correlation/hopper-medium-expert-v2/seed0-11-13-23-42-879673/output/final.pt',
+        # 'hopper-medium-expert-v2': 'log/BTIQL/reward-correlation-debug/hopper-medium-expert-v2/seed1-11-16-08-34-1917884/output/final.pt',
+        'hopper-medium-expert-v2': 'log/BTIQL/reward-correlation-debug/hopper-medium-expert-v2/seed2-11-16-13-20-1932602/output/final.pt',
         'walker2d-medium-replay-v2': 'log/BTIQL/reward-correlation/walker2d-medium-replay-v2/seed0-11-14-15-03-950718/output/final.pt',
         'walker2d-medium-expert-v2': 'log/BTIQL/reward-correlation/walker2d-medium-expert-v2/seed0-11-14-15-04-953448/output/final.pt',
     },
     'HindsightPreferenceLearning': {
         'hopper-medium-replay-v2': 'log/HindsightPreferenceLearning/reward-correlation/hopper-medium-replay-v2/seed0-11-13-19-58-779067/output/final.pt',
-        'hopper-medium-expert-v2': 'log/HindsightPreferenceLearning/reward-correlation/hopper-medium-expert-v2/seed0-11-13-23-45-881769/output/final.pt',
+        # 'hopper-medium-expert-v2': 'log/HindsightPreferenceLearning/reward-correlation-debug/hopper-medium-expert-v2/seed1-11-16-05-44-1916982/output/final.pt',
+        'hopper-medium-expert-v2': 'log/HindsightPreferenceLearning/reward-correlation-debug/hopper-medium-expert-v2/seed2-11-16-10-00-1921162/output/final.pt',
         'walker2d-medium-replay-v2': 'log/HindsightPreferenceLearning/reward-correlation/walker2d-medium-replay-v2/seed0-11-14-01-08-882667/output/final.pt',
         'walker2d-medium-expert-v2': 'log/HindsightPreferenceLearning/reward-correlation/walker2d-medium-expert-v2/seed0-11-14-02-21-883247/output/final.pt',
     },
 }
+
+# human
+# ckpt_map = {
+#     'BTIQL': {
+#         'hopper-medium-replay-v2': 'log/BTIQL/human-reward-correlation-debug/hopper-medium-replay-v2/seed0-11-17-08-24-2371905/output/final.pt',
+#         'hopper-medium-expert-v2': 'log/BTIQL/reward-correlation-debug/hopper-medium-expert-v2/seed0-11-14-21-03-1268183/output/final.pt',
+#         'walker2d-medium-replay-v2': 'log/BTIQL/reward-correlation/walker2d-medium-replay-v2/seed0-11-14-15-03-950718/output/final.pt',
+#         'walker2d-medium-expert-v2': 'log/BTIQL/reward-correlation/walker2d-medium-expert-v2/seed0-11-14-15-04-953448/output/final.pt',
+#     },
+#     'HindsightPreferenceLearning': {
+#         'hopper-medium-replay-v2': 'log/HindsightPreferenceLearning/human-reward-correlation-debug/hopper-medium-replay-v2/seed0-11-17-02-59-2283402/output/final.pt',
+#         'hopper-medium-expert-v2': 'log/HindsightPreferenceLearning/reward-correlation-debug/hopper-medium-expert-v2/seed0-11-14-17-06-1061908/output/final.pt',
+#         'walker2d-medium-replay-v2': 'log/HindsightPreferenceLearning/reward-correlation/walker2d-medium-replay-v2/seed0-11-14-01-08-882667/output/final.pt',
+#         'walker2d-medium-expert-v2': 'log/HindsightPreferenceLearning/reward-correlation/walker2d-medium-expert-v2/seed0-11-14-02-21-883247/output/final.pt',
+#     },
+# }
 
 
 # file name prefix
@@ -111,4 +149,5 @@ for i, env in enumerate(envs):
         ax.text(0.05, 0.95, f'Correlation: {reward_correlation:.2f}', transform=ax.transAxes, verticalalignment='top', fontsize=12)
 
 plt.tight_layout()
-plt.savefig('scripts/output/reward_correlation_comparison.png')
+# plt.savefig('scripts/output/seed_reward_correlation_comparison.png')
+plt.savefig('scripts/output/seed2_reward_correlation_comparison.png')
