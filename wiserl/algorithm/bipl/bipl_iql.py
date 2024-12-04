@@ -6,8 +6,10 @@ import imageio
 import numpy as np
 import torch
 
+import wiserl.module
 from wiserl.algorithm.base import Algorithm
 from wiserl.algorithm.oracle_iql import OracleIQL
+from wiserl.module.actor import DeterministicActor, GaussianActor
 from wiserl.utils.functional import expectile_regression
 from wiserl.utils.misc import make_target, sync_target
 
@@ -26,6 +28,10 @@ class BIPL_IQL(OracleIQL):
         discount: float = 0.99,
         tau: float = 0.005,
         target_freq: int = 1,
+        bc_steps: int = 0,
+        bc_data: str = "total",
+        min_importance_weight: float = 0.1,
+        max_importance_weight: float = 10.0,
         **kwargs
     ):
         super().__init__(
@@ -43,17 +49,107 @@ class BIPL_IQL(OracleIQL):
         self.actor_replay_weight = actor_replay_weight
         self.value_replay_weight = value_replay_weight
         self.reward_criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
+        self.bc_steps = bc_steps
+        self.bc_data = bc_data
+        self.min_importance_weight = min_importance_weight
+        self.max_importance_weight = max_importance_weight
 
     def setup_network(self, network_kwargs):
         super().setup_network(network_kwargs)
+        self.network["pref_actor"] = vars(wiserl.module)[network_kwargs["pref_actor"].pop("class")](
+            input_dim=self.observation_space.shape[0],
+            output_dim=self.action_space.shape[0],
+            **network_kwargs["pref_actor"]
+        )
+        self.network["unlabeled_actor"] = vars(wiserl.module)[network_kwargs["unlabeled_actor"].pop("class")](
+            input_dim=self.observation_space.shape[0],
+            output_dim=self.action_space.shape[0],
+            **network_kwargs["unlabeled_actor"]
+        )
 
     def setup_optimizers(self, optim_kwargs):
         super().setup_optimizers(optim_kwargs)
+        default_kwargs = optim_kwargs.get("default", {})
+
+        pref_actor_kwargs = default_kwargs.copy()
+        pref_actor_kwargs.update(optim_kwargs.get("pref_actor", {}))
+        self.optim["pref_actor"] = vars(torch.optim)[pref_actor_kwargs.pop("class")](
+            self.network.pref_actor.parameters(), **pref_actor_kwargs
+        )
+
+        unlabeled_actor_kwargs = default_kwargs.copy()
+        unlabeled_actor_kwargs.update(optim_kwargs.get("unlabeled_actor", {}))
+        self.optim["unlabeled_actor"] = vars(torch.optim)[unlabeled_actor_kwargs.pop("class")](
+            self.network.unlabeled_actor.parameters(), **unlabeled_actor_kwargs
+        )
 
     def select_action(self, batch, deterministic: bool=True):
         return super().select_action(batch, deterministic)
 
     def train_step(self, batches, step: int, total_steps: int):
+        if step <= self.bc_steps:
+            return self.bc_step(batches, step, total_steps)
+        else:
+            return self.pref_train_step(batches, step, total_steps)
+        
+    def compute_logprob(self, actor, obs, action):
+        if isinstance(actor, DeterministicActor):
+            logprob = - torch.square(action - actor.sample(obs)[0]).sum(dim=-1, keepdim=True)
+        elif isinstance(actor, GaussianActor):
+            logprob = actor.evaluate(obs, action)[0]
+        return logprob
+
+    def bc_step(self, batches, step: int, total_steps: int):
+        if len(batches) > 1:
+            feedback_batch, replay_batch, *_ = batches
+        else:
+            feedback_batch, replay_batch = batches[0], None
+
+        # Combine observations and actions from both sequences
+        pref_obs = torch.concat([feedback_batch["obs_1"][:, :-1], feedback_batch["obs_2"][:, :-1]], dim=0)
+        pref_action = torch.concat([feedback_batch["action_1"][:, :-1], feedback_batch["action_2"][:, :-1]], dim=0)
+        label = feedback_batch["label"].float()
+        
+        # Compute log probabilities for pref_actor
+        logprob = self.compute_logprob(self.network.pref_actor, pref_obs, pref_action)
+
+        # Create mask based on bc_data
+        if self.bc_data == "total":
+            mask = torch.concat([torch.ones_like(label), torch.ones_like(label)], dim=0)
+        elif self.bc_data == "win":
+            mask = torch.concat([1-label, label], dim=0)
+        elif self.bc_data == "lose":
+            mask = torch.concat([label, 1-label], dim=0)
+        pref_bc_loss = -(logprob.mean(dim=1) * mask).sum() / mask.sum()
+
+        # Update pref_actor
+        self.optim["pref_actor"].zero_grad()
+        pref_bc_loss.backward()
+        self.optim["pref_actor"].step()
+
+        # Behavior cloning for unlabeled_actor
+        unlabeled_actor_loss = torch.tensor(0.0)
+        if replay_batch is not None:
+            unlabeled_obs = replay_batch["obs"].reshape(-1, self.observation_space.shape[0])
+            unlabeled_action = replay_batch["action"].reshape(-1, self.action_space.shape[0])
+
+            log_prob = self.network.unlabeled_actor.evaluate(unlabeled_obs, unlabeled_action)[0]
+            unlabeled_actor_loss = -log_prob.mean()
+
+            self.optim["unlabeled_actor"].zero_grad()
+            unlabeled_actor_loss.backward()
+            self.optim["unlabeled_actor"].step()
+        else:
+            unlabeled_actor_loss = torch.tensor(0.0)
+
+        metrics = {
+            "loss/pref_actor_loss": pref_bc_loss.item(),
+            "loss/unlabeled_actor_loss": unlabeled_actor_loss.item(),
+        }
+        return metrics
+
+    def pref_train_step(self, batches, step: int, total_steps: int):
+        # Original training logic moved here
         if len(batches) > 1:
             feedback_batch, replay_batch, *_ = batches
         else:
@@ -101,7 +197,16 @@ class BIPL_IQL(OracleIQL):
             self.target_network.eval()
             q_old = self.target_network.critic(encoded_obs, action)
             q_old = torch.min(q_old, dim=0)[0]
-        v_loss, v_pred = self.v_loss(encoded_obs.detach(), q_old, reduce=False)
+
+        # Compute importance weights
+        with torch.no_grad():
+            log_pref_prob = self.network.pref_actor.evaluate(obs, action)[0].mean(dim=1)
+            log_unlabeled_prob = self.network.unlabeled_actor.evaluate(obs, action)[0].mean(dim=1)
+            importance_weight = torch.exp(log_pref_prob - log_unlabeled_prob)
+            importance_weight = importance_weight.clamp(self.min_importance_weight, self.max_importance_weight)
+
+        # Compute v_loss with importance weights
+        v_loss, v_pred = self.v_loss(encoded_obs.detach(), q_old, importance_weight=importance_weight, reduce=False)
         if using_replay_batch and self.value_replay_weight is not None:
             v1, v2, vr = torch.split(v_loss, split, dim=0)
             v_loss_fb = (v1.mean() + v2.mean()) / 2
@@ -114,7 +219,7 @@ class BIPL_IQL(OracleIQL):
         self.optim["value"].step()
 
         # compute actor loss
-        actor_loss, advantage = self.actor_loss(encoded_obs, action, q_old, v_pred.detach(), reduce=False)
+        actor_loss, advantage = self.actor_loss(encoded_obs, action, q_old, v_pred.detach(), importance_weight=importance_weight, reduce=False)
         if using_replay_batch and self.actor_replay_weight is not None:
             a1, a2, ar = torch.split(actor_loss, split, dim=0)
             actor_loss_fb = (a1.mean() + a2.mean()) / 2
@@ -165,7 +270,8 @@ class BIPL_IQL(OracleIQL):
             "misc/v_pred": v_pred.mean().item(),
             "misc/advantage": advantage.mean().item(),
             "misc/reward_value": reward.mean().item(),
-            "misc/reward_acc": reward_accuracy.mean().item()
+            "misc/reward_acc": reward_accuracy.mean().item(),
+            "misc/importance_weight": importance_weight.mean().item(),
         }
         if using_replay_batch and self.actor_replay_weight is not None:
             metrics.update({
