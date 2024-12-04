@@ -83,14 +83,14 @@ class OracleIQL(Algorithm):
         action, *_ = self.network.actor.sample(obs, deterministic=deterministic)
         return action.squeeze().cpu().numpy()
 
-    def v_loss(self, encoded_obs, q_old, importance_weight=None, reduce=True):
+    def v_loss(self, encoded_obs, q_old, weights=None, reduce=True):
         v_pred = self.network.value(encoded_obs)
         v_loss = expectile_regression(v_pred, q_old, expectile=self.expectile)
-        if importance_weight is not None:
-            v_loss = v_loss * importance_weight
+        if weights is not None:
+            v_loss = v_loss * weights
         return v_loss.mean() if reduce else v_loss, v_pred
 
-    def actor_loss(self, encoded_obs, action, q_old, v, importance_weight=None, reduce=True):
+    def actor_loss(self, encoded_obs, action, q_old, v, weights=None, reduce=True):
         with torch.no_grad():
             advantage = q_old - v
         exp_advantage = (advantage / self.beta).exp().clip(max=self.max_exp_clip)
@@ -99,8 +99,8 @@ class OracleIQL(Algorithm):
         elif isinstance(self.network.actor, GaussianActor):
             policy_out = - self.network.actor.evaluate(encoded_obs, action)[0]
         actor_loss = (exp_advantage * policy_out)
-        if importance_weight is not None:
-            actor_loss = actor_loss * importance_weight
+        if weights is not None:
+            actor_loss = actor_loss * weights
         return actor_loss.mean() if reduce else actor_loss, advantage
 
     def q_loss(self, encoded_obs, action, next_encoded_obs, reward, terminal, reduce=True):

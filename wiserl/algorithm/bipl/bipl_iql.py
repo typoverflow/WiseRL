@@ -206,7 +206,7 @@ class BIPL_IQL(OracleIQL):
             importance_weight = importance_weight.clamp(self.min_importance_weight, self.max_importance_weight)
 
         # Compute v_loss with importance weights
-        v_loss, v_pred = self.v_loss(encoded_obs.detach(), q_old, importance_weight=importance_weight, reduce=False)
+        v_loss, v_pred = self.v_loss(encoded_obs.detach(), q_old, weights=importance_weight, reduce=False)
         if using_replay_batch and self.value_replay_weight is not None:
             v1, v2, vr = torch.split(v_loss, split, dim=0)
             v_loss_fb = (v1.mean() + v2.mean()) / 2
@@ -219,7 +219,7 @@ class BIPL_IQL(OracleIQL):
         self.optim["value"].step()
 
         # compute actor loss
-        actor_loss, advantage = self.actor_loss(encoded_obs, action, q_old, v_pred.detach(), importance_weight=importance_weight, reduce=False)
+        actor_loss, advantage = self.actor_loss(encoded_obs, action, q_old, v_pred.detach(), weights=importance_weight, reduce=False)
         if using_replay_batch and self.actor_replay_weight is not None:
             a1, a2, ar = torch.split(actor_loss, split, dim=0)
             actor_loss_fb = (a1.mean() + a2.mean()) / 2
