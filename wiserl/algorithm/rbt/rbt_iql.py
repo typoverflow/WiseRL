@@ -29,7 +29,7 @@ class RBTIQL(OracleIQL):
         logstd_coeff: float = 0.1,
         logstd_threshold: float = 0.1,
         use_std_weights: bool = False,
-        use_std_weights_for_actor: bool = False,
+        use_std_weights_for_actor: bool = True,
         use_low_quantile: bool = False,
         low_quantile_ratio: float = 1.0,
         **kwargs
