@@ -59,12 +59,12 @@ class DBTIQL(OracleIQL):
         )
         network["critic"] = vars(wiserl.module)[network_kwargs["critic"].pop("class")](
             input_dim=self.observation_space.shape[0]+self.action_space.shape[0],
-            output_dim=1,
+            output_dim=2,  # Output mean and logstd
             **network_kwargs["critic"]
         )
         network["value"] = vars(wiserl.module)[network_kwargs["value"].pop("class")](
             input_dim=self.observation_space.shape[0],
-            output_dim=1,
+            output_dim=2,  # Output mean and logstd
             **network_kwargs["value"]
         )
         if "encoder" in network_kwargs:
@@ -158,12 +158,17 @@ class DBTIQL(OracleIQL):
         }
         return metrics
 
-    def v_loss(self, encoded_obs, q_old, weights=None, reduce=True):
-        v_pred = self.network.value(encoded_obs)
-        v_loss = expectile_regression(v_pred, q_old, expectile=self.expectile)
-        if weights is not None:
-            v_loss = v_loss * weights
-        return v_loss.mean() if reduce else v_loss, v_pred
+    def expectile_regression_with_logstd(self, pred, target, pred_logstd, target_logstd, expectile):
+        diff = target - pred
+        return torch.where(diff > 0, expectile, 1-expectile) * ((diff**2) + (pred_logstd - target_logstd)**2)
+
+    def v_loss(self, encoded_obs, q_old_mean, q_old_logstd, reduce=True):
+        v_mean_logstd = self.network.value(encoded_obs)
+        v_mean, v_logstd = torch.chunk(v_mean_logstd, 2, dim=-1)
+        v_loss = self.expectile_regression_with_logstd(v_mean, q_old_mean, v_logstd, q_old_logstd, expectile=self.expectile)
+        weights = 1 / (q_old_logstd.exp() ** 2)
+        v_loss = v_loss * weights
+        return v_loss.mean() if reduce else v_loss, v_mean, v_logstd
 
     def actor_loss(self, encoded_obs, action, q_old, v, weights=None, reduce=True):
         with torch.no_grad():
@@ -178,13 +183,17 @@ class DBTIQL(OracleIQL):
             actor_loss = actor_loss * weights
         return actor_loss.mean() if reduce else actor_loss, advantage
 
-    def q_loss(self, encoded_obs, action, next_encoded_obs, reward, terminal, reduce=True):
+    def q_loss(self, encoded_obs, action, next_encoded_obs, reward, reward_logstd, terminal, reduce=True):
         with torch.no_grad():
-            target_q = self.network.value(next_encoded_obs)
-            target_q = reward + self.discount * (1-terminal) * target_q
-        q_pred = self.network.critic(encoded_obs, action)
-        q_loss = (q_pred - target_q.unsqueeze(0)).pow(2).sum(0)
-        return q_loss.mean() if reduce else q_loss, q_pred
+            target_v_mean_logstd = self.network.value(next_encoded_obs)
+            target_v_mean, target_v_logstd = torch.chunk(target_v_mean_logstd, 2, dim=-1)
+            # calculate target_q and target_q_logstd
+            target_q_mean = reward + self.discount * (1 - terminal) * target_v_mean
+            target_q_logstd = torch.log(torch.sqrt(reward_logstd.exp() ** 2 + (self.discount * (1 - terminal) * target_v_logstd.exp()) ** 2))
+        q_mean_logstd = self.network.critic(encoded_obs, action)
+        q_mean, q_logstd = torch.chunk(q_mean_logstd, 2, dim=-1)
+        q_loss = (q_mean - target_q_mean.unsqueeze(0)).pow(2).sum(0) + (q_logstd - target_q_logstd.unsqueeze(0)).pow(2).sum(0)
+        return q_loss.mean() if reduce else q_loss, q_mean, q_logstd
 
     def train_step(self, batches, step: int, total_steps: int) -> Dict:
         rl_batch = batches[0]
@@ -196,37 +205,33 @@ class DBTIQL(OracleIQL):
             with torch.no_grad():
                 reward = self.select_reward({"obs": obs, "action": action}, deterministic=True)
 
-        # # Compute weights if use_std_weights is True
-        # if self.use_std_weights:
-        #     with torch.no_grad():
-        #         reward_mean_logstd = self.network.reward(torch.concat([obs, action], dim=-1))
-        #         _, reward_logstd = torch.chunk(reward_mean_logstd, 2, dim=-1)
-        #         if self.use_std_not_var:
-        #             weights = 1 / torch.exp(reward_logstd)
-        #         else:
-        #             weights = 1 / (torch.exp(reward_logstd) ** 2)
-        # else:
-        #     weights = None
+        with torch.no_grad():
+            reward_mean_logstd = self.network.reward(torch.concat([obs, action], dim=-1))
+            reward_mean, reward_logstd = torch.chunk(reward_mean_logstd, 2, dim=-1)
 
         with torch.no_grad():
             self.target_network.eval()
-            q_old = self.target_network.critic(obs, action)
-            q_old = torch.min(q_old, dim=0)[0]
+            q_mean_logstd = self.target_network.critic(obs, action)
+            q_mean, q_logstd = torch.chunk(q_mean_logstd, 2, dim=-1)
+            # q_old = torch.min(q_mean, dim=0)[0]
+            min_indices = torch.argmin(q_mean, dim=0)
+            q_old_mean = q_mean[min_indices, torch.arange(q_mean.size(1)).unsqueeze(1), torch.arange(q_mean.size(2))]
+            q_old_logstd = q_logstd[min_indices, torch.arange(q_logstd.size(1)).unsqueeze(1), torch.arange(q_logstd.size(2))]
 
         # compute the loss for value network
-        v_loss, v_pred = self.v_loss(obs.detach(), q_old)
+        v_loss, v_pred, v_logstd = self.v_loss(obs.detach(), q_old_mean, q_old_logstd)
         self.optim["value"].zero_grad()
         v_loss.backward()
         self.optim["value"].step()
 
         # compute the loss for actor
-        actor_loss, advantage = self.actor_loss(obs, action, q_old, v_pred.detach())
+        actor_loss, advantage = self.actor_loss(obs, action, q_old_mean, v_pred.detach())
         self.optim["actor"].zero_grad()
         actor_loss.backward()
         self.optim["actor"].step()
 
         # compute the loss for q
-        q_loss, q_pred = self.q_loss(obs, action, next_obs, reward, terminal)
+        q_loss, q_pred, q_logstd = self.q_loss(obs, action, next_obs, reward, reward_logstd, terminal)
         self.optim["critic"].zero_grad()
         q_loss.backward()
         self.optim["critic"].step()
@@ -242,7 +247,11 @@ class DBTIQL(OracleIQL):
             "loss/v_loss": v_loss.item(),
             "loss/actor_loss": actor_loss.item(),
             "misc/q_pred": q_pred.mean().item(),
+            "misc/q_logstd": q_logstd.mean().item(),
+            "misc/q_std": q_logstd.exp().mean().item(),
             "misc/v_pred": v_pred.mean().item(),
+            "misc/v_logstd": v_logstd.mean().item(),
+            "misc/v_std": v_logstd.exp().mean().item(),
             "misc/advantage": advantage.mean().item(),
         }
         return metrics
