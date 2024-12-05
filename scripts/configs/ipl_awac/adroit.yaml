@@ -44,12 +44,12 @@ network:
 
 dataset:
   - class: IPLComparisonOfflineDataset
-    env: pen-cloned-v1
+    env: <env>
     batch_size: 8
     mode: human
     segment_length: null
   - class: D4RLOfflineDataset
-    env: pen-cloned-v1
+    env: <env>
     batch_size: 256
     mode: transition
     reward_normalize: true

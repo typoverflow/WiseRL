@@ -56,7 +56,7 @@ network:
 
 rm_dataset:
   - class: IPLComparisonOfflineDataset
-    env: pen-cloned-v1
+    env: <env>
     batch_size: 64
     mode: human
 rm_dataloader:
@@ -65,7 +65,7 @@ rm_dataloader:
 
 rl_dataset:
   - class: D4RLOfflineDataset
-    env: pen-cloned-v1
+    env: <env>
     batch_size: 256
     mode: trajectory
     segment_length: 20
@@ -86,7 +86,7 @@ rm_eval:
   function: eval_reward_model
   eval_dataset_kwargs:
     class: IPLComparisonOfflineDataset
-    env: pen-cloned-v1
+    env: <env>
     batch_size: 32
     mode: human
     eval: false

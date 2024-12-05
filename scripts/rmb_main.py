@@ -10,9 +10,10 @@ import wandb
 import wiserl.algorithm
 from wiserl.env import get_env
 from wiserl.trainer.rmb_offline_trainer import RewardModelBasedOfflineTrainer
+from wiserl.utils.utils import use_placeholder
 
 if __name__ == "__main__":
-    args = parse_args(convert=False)
+    args = parse_args(convert=False, post_init=use_placeholder)
     name_prefix = f"{args['algorithm']['class']}/{args['name']}/{args['env']}"
     logger = CompositeLogger(
         log_dir=f"./log/{name_prefix}",

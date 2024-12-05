@@ -48,12 +48,12 @@ network:
 
 dataset:
   - class: IPLComparisonOfflineDataset
-    env: hopper-medium-replay-v2
+    env: <env>
     batch_size: 8
     mode: human
     segment_length: null
   - class: D4RLOfflineDataset
-    env: hopper-medium-replay-v2
+    env: <env>
     batch_size: 256
     mode: transition
     reward_normalize: true
