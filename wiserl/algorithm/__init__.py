@@ -1,6 +1,7 @@
 from wiserl.algorithm.bt.bt_awac import BTAWAC
 from wiserl.algorithm.bt.bt_iql import BTIQL
 from wiserl.algorithm.rbt.rbt_iql import RBTIQL
+from wiserl.algorithm.dbt.dbt_iql import DBTIQL
 from wiserl.algorithm.bbt.bbt_awac import BBTAWAC
 from wiserl.algorithm.bbt.bbt_iql import BBTIQL
 from wiserl.algorithm.cpl import CPL

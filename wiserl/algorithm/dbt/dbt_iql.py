@@ -14,7 +14,7 @@ from wiserl.utils.functional import expectile_regression
 from wiserl.utils.misc import make_target, sync_target
 
 
-class RBTIQL(OracleIQL):
+class DBTIQL(OracleIQL):
     def __init__(
         self,
         *args,
@@ -28,11 +28,6 @@ class RBTIQL(OracleIQL):
         rm_label: bool = True,
         logstd_coeff: float = 0.1,
         logstd_threshold: float = 0.1,
-        use_std_weights: bool = False,
-        use_std_weights_for_actor: bool = True,
-        use_std_not_var: bool = False,
-        use_low_quantile: bool = False,
-        low_quantile_ratio: float = 1.0,
         **kwargs
     ) -> None:
         super().__init__(
@@ -54,14 +49,36 @@ class RBTIQL(OracleIQL):
         self.threshold_criterion = torch.relu
         self.logstd_coeff = logstd_coeff
         self.logstd_threshold = logstd_threshold
-        self.use_std_weights = use_std_weights
-        self.use_std_weights_for_actor = use_std_weights_for_actor
-        self.use_std_not_var = use_std_not_var
-        self.use_low_quantile = use_low_quantile
-        self.low_quantile_ratio = low_quantile_ratio
 
     def setup_network(self, network_kwargs):
-        super().setup_network(network_kwargs)
+        network = {}
+        network["actor"] = vars(wiserl.module)[network_kwargs["actor"].pop("class")](
+            input_dim=self.observation_space.shape[0],
+            output_dim=self.action_space.shape[0],
+            **network_kwargs["actor"]
+        )
+        network["critic"] = vars(wiserl.module)[network_kwargs["critic"].pop("class")](
+            input_dim=self.observation_space.shape[0]+self.action_space.shape[0],
+            output_dim=1,
+            **network_kwargs["critic"]
+        )
+        network["value"] = vars(wiserl.module)[network_kwargs["value"].pop("class")](
+            input_dim=self.observation_space.shape[0],
+            output_dim=1,
+            **network_kwargs["value"]
+        )
+        if "encoder" in network_kwargs:
+            network["encoder"] = vars(wiserl.module)[network_kwargs["encoder"].pop("class")](
+                input_dim=self.observation_space.shape[0],
+                output_dim=1,
+                **network_kwargs["encoder"]
+            )
+        else:
+            network["encoder"] = nn.Identity()
+        self.network = nn.ModuleDict(network)
+        self.target_network = nn.ModuleDict({
+            "critic": make_target(self.network.critic)
+        })
         reward_act = {
             "identity": nn.Identity(),
             "sigmoid": nn.Sigmoid(),
@@ -89,11 +106,7 @@ class RBTIQL(OracleIQL):
         reward_mean_logstd = self.network.reward(torch.concat([obs, action], dim=-1))
         reward_mean, reward_logstd = torch.chunk(reward_mean_logstd, 2, dim=-1)
         reward_mean = self.network.reward_act(reward_mean)
-        if self.use_low_quantile:
-            reward = reward_mean - self.low_quantile_ratio * torch.exp(reward_logstd)
-        else:
-            reward = reward_mean
-        return reward.mean(0).detach()
+        return reward_mean.mean(0).detach()
 
     def pretrain_step(self, batches, step: int, total_steps: int) -> Dict:
         batch = batches[0]
@@ -111,7 +124,6 @@ class RBTIQL(OracleIQL):
         reward_mean, reward_logstd = torch.chunk(all_reward_mean_logstd, 2, dim=-1)
         reward_mean = self.network.reward_act(reward_mean)
         reward_std = torch.exp(reward_logstd)
-        reward_low_quantile = reward_mean - self.low_quantile_ratio * reward_std
         r1_mean, r2_mean = torch.chunk(reward_mean, 2, dim=1)
         r1_std, r2_std = torch.chunk(reward_std, 2, dim=1)
         E = r1_mean.shape[0]
@@ -138,7 +150,6 @@ class RBTIQL(OracleIQL):
             "misc/logstd_loss": logstd_loss.item(),
             "misc/reward_acc": reward_accuracy.item(),
             "misc/reward_value": reward_mean.mean().item(),
-            "misc/reward_low_quantile": reward_low_quantile.mean().item(),
             "misc/reward_logstd": reward_logstd.mean().item(),
             "misc/reward_std": reward_std.mean().item(),
             "misc/reward_std_std": reward_std.std().item(),
@@ -146,6 +157,34 @@ class RBTIQL(OracleIQL):
             "misc/pref_std_std": pref_std.std().item(),
         }
         return metrics
+
+    def v_loss(self, encoded_obs, q_old, weights=None, reduce=True):
+        v_pred = self.network.value(encoded_obs)
+        v_loss = expectile_regression(v_pred, q_old, expectile=self.expectile)
+        if weights is not None:
+            v_loss = v_loss * weights
+        return v_loss.mean() if reduce else v_loss, v_pred
+
+    def actor_loss(self, encoded_obs, action, q_old, v, weights=None, reduce=True):
+        with torch.no_grad():
+            advantage = q_old - v
+        exp_advantage = (advantage / self.beta).exp().clip(max=self.max_exp_clip)
+        if isinstance(self.network.actor, DeterministicActor):
+            policy_out = torch.sum((self.network.actor.sample(encoded_obs)[0] - action)**2, dim=-1, keepdim=True)
+        elif isinstance(self.network.actor, GaussianActor):
+            policy_out = - self.network.actor.evaluate(encoded_obs, action)[0]
+        actor_loss = (exp_advantage * policy_out)
+        if weights is not None:
+            actor_loss = actor_loss * weights
+        return actor_loss.mean() if reduce else actor_loss, advantage
+
+    def q_loss(self, encoded_obs, action, next_encoded_obs, reward, terminal, reduce=True):
+        with torch.no_grad():
+            target_q = self.network.value(next_encoded_obs)
+            target_q = reward + self.discount * (1-terminal) * target_q
+        q_pred = self.network.critic(encoded_obs, action)
+        q_loss = (q_pred - target_q.unsqueeze(0)).pow(2).sum(0)
+        return q_loss.mean() if reduce else q_loss, q_pred
 
     def train_step(self, batches, step: int, total_steps: int) -> Dict:
         rl_batch = batches[0]
@@ -157,17 +196,17 @@ class RBTIQL(OracleIQL):
             with torch.no_grad():
                 reward = self.select_reward({"obs": obs, "action": action}, deterministic=True)
 
-        # Compute weights if use_std_weights is True
-        if self.use_std_weights:
-            with torch.no_grad():
-                reward_mean_logstd = self.network.reward(torch.concat([obs, action], dim=-1))
-                _, reward_logstd = torch.chunk(reward_mean_logstd, 2, dim=-1)
-                if self.use_std_not_var:
-                    weights = 1 / torch.exp(reward_logstd)
-                else:
-                    weights = 1 / (torch.exp(reward_logstd) ** 2)
-        else:
-            weights = None
+        # # Compute weights if use_std_weights is True
+        # if self.use_std_weights:
+        #     with torch.no_grad():
+        #         reward_mean_logstd = self.network.reward(torch.concat([obs, action], dim=-1))
+        #         _, reward_logstd = torch.chunk(reward_mean_logstd, 2, dim=-1)
+        #         if self.use_std_not_var:
+        #             weights = 1 / torch.exp(reward_logstd)
+        #         else:
+        #             weights = 1 / (torch.exp(reward_logstd) ** 2)
+        # else:
+        #     weights = None
 
         with torch.no_grad():
             self.target_network.eval()
@@ -175,13 +214,13 @@ class RBTIQL(OracleIQL):
             q_old = torch.min(q_old, dim=0)[0]
 
         # compute the loss for value network
-        v_loss, v_pred = self.v_loss(obs.detach(), q_old, weights=weights)
+        v_loss, v_pred = self.v_loss(obs.detach(), q_old)
         self.optim["value"].zero_grad()
         v_loss.backward()
         self.optim["value"].step()
 
         # compute the loss for actor
-        actor_loss, advantage = self.actor_loss(obs, action, q_old, v_pred.detach(), weights=weights if self.use_std_weights_for_actor else None)
+        actor_loss, advantage = self.actor_loss(obs, action, q_old, v_pred.detach())
         self.optim["actor"].zero_grad()
         actor_loss.backward()
         self.optim["actor"].step()
@@ -205,8 +244,6 @@ class RBTIQL(OracleIQL):
             "misc/q_pred": q_pred.mean().item(),
             "misc/v_pred": v_pred.mean().item(),
             "misc/advantage": advantage.mean().item(),
-            "misc/weights": weights.mean().item() if weights is not None else 1.0,
-            "misc/weights_std": weights.std().item() if weights is not None else 0.0,
         }
         return metrics
 

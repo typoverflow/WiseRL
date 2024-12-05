@@ -1,16 +1,11 @@
 algorithm:
-  class: RBTIQL
+  class: DBTIQL
   beta: 0.3333
   expectile: 0.7
   max_exp_clip: 100.0
   reward_reg: 0.0
-  use_std_weights: false
-  use_std_weights_for_actor: true
-  use_std_not_var: false
   logstd_coeff: 0.1
   logstd_threshold: -0.5
-  use_low_quantile: false
-  low_quantile_ratio: 1.0
   rm_label: true
 
 checkpoint: null
