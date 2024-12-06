@@ -76,16 +76,16 @@ network:
 
 rm_dataset:
   - class: MetaworldOfflineDataset
-    env: button-press-v2
+    env: <env>
     batch_size: 16 # [64, 128]
     capacity: 5000
   - class: MetaworldComparisonDataset
-    env: button-press-v2
+    env: <env>
     batch_size: 16
     capacity: 500
     segment_length: 24
   - class: MetaworldOfflineDataset
-    env: button-press-v2
+    env: <env>
     batch_size: 16 # [64, 128]
     capacity: 5000
 rm_dataloader:
@@ -94,7 +94,7 @@ rm_dataloader:
 
 rl_dataset:
   - class: MetaworldOfflineDataset
-    env: button-press-v2
+    env: <env>
     batch_size: 16
     capacity: 5000
 rl_dataloader:
@@ -114,7 +114,7 @@ rm_eval:
   function: eval_reward_model
   eval_dataset_kwargs:
     class: MetaworldComparisonDataset
-    env: button-press-v2
+    env: <env>
     batch_size: 32
     segment_length: 24
     capacity: 500

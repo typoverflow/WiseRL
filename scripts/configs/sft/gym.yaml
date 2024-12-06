@@ -30,7 +30,7 @@ network:
 
 dataset:
     class: IPLComparisonOfflineDataset
-    env: hopper-medium-replay-v2
+    env: <env>
     batch_size: 64
     segment_length: null
     mode: human

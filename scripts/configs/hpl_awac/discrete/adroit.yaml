@@ -78,17 +78,17 @@ network:
 
 rm_dataset:
   - class: D4RLOfflineDataset
-    env: pen-cloned-v1
+    env: <env>
     batch_size: 64 # [64, 128]
     mode: trajectory
     segment_length: 100
     padding_mode: none
   - class: IPLComparisonOfflineDataset
-    env: pen-cloned-v1
+    env: <env>
     batch_size: 8
     mode: human
   - class: D4RLOfflineDataset
-    env: pen-cloned-v1
+    env: <env>
     batch_size: 512
     mode: transition
 rm_dataloader:
@@ -97,7 +97,7 @@ rm_dataloader:
 
 rl_dataset:
   - class: D4RLOfflineDataset
-    env: pen-cloned-v1
+    env: <env>
     batch_size: 512
     mode: transition
 rl_dataloader:
@@ -117,7 +117,7 @@ rm_eval:
   function: eval_reward_model
   eval_dataset_kwargs:
     class: IPLComparisonOfflineDataset
-    env: pen-cloned-v1
+    env: <env>
     batch_size: 32
     mode: human
     eval: false

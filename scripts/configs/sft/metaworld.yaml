@@ -30,7 +30,7 @@ network:
 
 dataset:
     class: MetaworldComparisonDataset
-    env: button-press-v2
+    env: <env>
     batch_size: 64
     segment_length: null
     capacity: 500

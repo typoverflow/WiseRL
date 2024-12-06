@@ -30,7 +30,7 @@ network:
 
 dataset:
     class: IPLComparisonOfflineDataset
-    env: pen-cloned-v1
+    env: <env>
     batch_size: 64
     segment_length: null
     mode: human
