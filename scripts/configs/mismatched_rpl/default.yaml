@@ -57,12 +57,12 @@ network:
 
 dataset:
   - class: MismatchedComparisonDataset
-    env: HalfCheetah-gravity0.8
+    env: <env>
     batch_size: 96
     mode: trajectory
     segment_length: 64
   - class: MismatchedOfflineDataset
-    env: HalfCheetah-gravity1.2
+    env: <env>
     batch_size: 512
     mode: transition
 

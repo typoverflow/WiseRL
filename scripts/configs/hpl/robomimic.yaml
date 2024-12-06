@@ -77,17 +77,17 @@ network:
 
 rm_dataset:
   - class: RobomimicDataset
-    env: Can-mh
+    env: <env>
     batch_size: 64 # [64, 128]
     mode: trajectory
     segment_length: 100
     padding_mode: none
   - class: IPLComparisonOfflineDataset
-    env: Can-mh
+    env: <env>
     batch_size: 8
     mode: human
   - class: RobomimicDataset
-    env: Can-mh
+    env: <env>
     batch_size: 256
     mode: transition
 rm_dataloader:
@@ -96,7 +96,7 @@ rm_dataloader:
 
 rl_dataset:
   - class: RobomimicDataset
-    env: Can-mh
+    env: <env>
     batch_size: 256
     mode: transition
 rl_dataloader:
@@ -116,7 +116,7 @@ rm_eval:
   function: eval_reward_model
   eval_dataset_kwargs:
     class: IPLComparisonOfflineDataset
-    env: Can-mh
+    env: <env>
     batch_size: 32
     mode: human
     eval: false

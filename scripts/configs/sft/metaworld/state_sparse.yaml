@@ -35,7 +35,7 @@ network:
 
 dataset:
   class: MetaworldComparisonOfflineDataset
-  env: mw_drawer-open-v2
+  env: <env>
   label_key: rl_sum
   segment_length: null
   batch_size: 96

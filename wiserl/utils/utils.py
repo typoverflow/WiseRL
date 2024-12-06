@@ -45,3 +45,25 @@ def remove_float64(batch: Any):
     else:
         raise ValueError("Unsupported type passed to `remove_float64`")
     return batch
+
+# Convert placeholder like <env> into the value of the key "env" in top-level configuation
+def use_placeholder(args):
+    # get the upper level args with string or number values, like {"env": "CartPole-v1"}
+    upper_args = {"<" + k + ">": v for k, v in args.items() if isinstance(v, (str, int, float))}
+    # replace args whose values are "<key>" with the value of the key
+    def _replace(args):
+        if type(args) is dict:
+            final_args = {}
+            for k, v in args.items():
+                if isinstance(v, str) and v in upper_args:
+                    final_args[k] = upper_args[v]
+                else:
+                    final_args[k] = _replace(v)
+            return final_args
+        elif type(args) is list:
+            return [_replace(v) for v in args]
+        elif type(args) is tuple:
+            return tuple([_replace(v) for v in args])
+        else:
+            return args
+    args.update(_replace(args))
