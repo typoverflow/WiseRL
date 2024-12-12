@@ -145,13 +145,13 @@ class RPLOfflineDataset(torch.utils.data.IterableDataset):
         N, L = data["obs_1"].shape[:2]
 
         data = {
-            "obs": np.stack([data["obs_1"], data["obs_2"]], axis=0).reshape(2*N, L, -1)[:, :-1],
-            "next_obs": np.stack([data["obs_1"], data["obs_2"]], axis=0).reshape(2*N, L, -1)[:, 1:],
-            "action": np.stack([data["action_1"], data["action_2"]], axis=0).reshape(2*N, L, -1)[:, :-1],
+            "obs": np.stack([data["obs_1"], data["obs_2"]], axis=0).reshape(2*N, L, -1),
+            "next_obs": np.stack([data["next_obs_1"], data["next_obs_2"]], axis=0).reshape(2*N, L, -1),
+            "action": np.stack([data["action_1"], data["action_2"]], axis=0).reshape(2*N, L, -1),
+            "reward": np.stack([data["reward_1"], data["reward_2"]], axis=0).reshape(2*N, L, -1),
         }
-        data["terminal"] = np.zeros([2*N, L-1, 1], dtype=np.bool_)
-        data["reward"] = np.zeros([2*N, L-1, 1], dtype=np.float32)
-        data["mask"] = np.ones([2*N, L-1, 1], dtype=np.float32)
+        data["terminal"] = np.zeros([2*N, L, 1], dtype=np.bool_)
+        data["mask"] = np.ones([2*N, L, 1], dtype=np.float32)
 
         self.traj_len = np.asarray([o.shape[0] for o in data["obs"]])
         self.data_size = len(self.traj_len)
