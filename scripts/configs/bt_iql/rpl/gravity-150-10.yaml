@@ -64,8 +64,9 @@ rm_dataset:
     env: <env>
     batch_size: 8
     segment_length: null
-    mode: qv
+    label_key: rl_sum
     variant: gravity-150
+    capacity: 500
 rm_dataloader:
   num_workers: 2
   batch_size: null
@@ -75,6 +76,7 @@ rl_dataset:
     env: <env>
     batch_size: 16
     variant: gravity-10
+    capacity: 5000
 rl_dataloader:
   num_workers: 2
   batch_size: null
@@ -94,9 +96,10 @@ rm_eval:
     class: RPLComparisonDataset
     env: <env>
     batch_size: 32
-    mode: qv
+    label_key: rl_sum
     variant: gravity-150
-    eval: false
+    eval: true
+    capacity: 500
 rl_eval:
   function: eval_offline
   num_ep: 10

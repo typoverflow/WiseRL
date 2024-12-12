@@ -20,20 +20,20 @@ class RPLComparisonDataset(torch.utils.data.IterableDataset):
         segment_length: Optional[int] = None,
         batch_size: Optional[int] = None,
         capacity: Optional[int] = None,
-        mode: str = "qv",
+        label_key: str="rl_sum",
         variant: str = "gravity-50",
         eval: bool = False,
     ):
         super().__init__()
-        assert mode in {"qv", "vv"}, "Supported modes for IPLComparisonOfflineDataset: {qv, vv}"
 
         self.env_name = env
-        self.mode = mode
         self.batch_size = 1 if batch_size is None else batch_size
         self.segment_length = segment_length
+        self.label_key = label_key + '_label'
+        self.variant = variant
         self.eval = eval
         train_or_eval = "eval" if eval else "train"
-        path = f"{prefix}/{variant}/{self.env_name}/preference_adv_{self.mode}_{train_or_eval}_data.npz"
+        path = f"{prefix}/{variant}/{self.env_name}/preference_{train_or_eval}_data.npz"
         with open(path, "rb") as f:
             data = np.load(f)
             data = utils.nest_dict(data)
@@ -63,7 +63,7 @@ class RPLComparisonDataset(torch.utils.data.IterableDataset):
             "obs_2": self.data["obs_2"][idx, start_idx:end_idx],
             "action_1": self.data["action_1"][idx, start_idx:end_idx],
             "action_2": self.data["action_2"][idx, start_idx:end_idx],
-            "label": self.data["label"][idx][:, None],
+            "label": self.data[self.label_key][idx][:, None],
             "terminal_1": np.zeros([len(idx), end_idx-start_idx, 1], dtype=np.float32) \
                 if is_batch else np.zeros([end_idx-start_idx, 1], dtype=np.float32),
             "terminal_2": np.zeros([len(idx), end_idx-start_idx, 1], dtype=np.float32) \
@@ -88,9 +88,10 @@ class RPLComparisonDataset(torch.utils.data.IterableDataset):
 class RPLOfflineDataset(torch.utils.data.IterableDataset):
     def __init__(
         self,
-        observation_space,
-        action_space,
+        observation_space: gym.Space,
+        action_space: gym.Space,
         env: str,
+        # segment_length: Optional[int] = None,
         batch_size: Optional[int] = None,
         capacity: Optional[int] = None,
         mode: str = "transition",
@@ -102,13 +103,11 @@ class RPLOfflineDataset(torch.utils.data.IterableDataset):
 
         self.env_name = env
         self.batch_size = 1 if batch_size is None else batch_size
+        # self.segment_length = segment_length
         self.capacity = capacity
+        self.variant = variant
         self.eval = eval
 
-        train_or_eval = "eval" if eval else "train"
-        path = f"{prefix}/{variant}/{self.env_name}/offline_{train_or_eval}_data.npz"
-
-        self.path = path
         self.load_dataset()
 
     def __len__(self):
@@ -118,7 +117,7 @@ class RPLOfflineDataset(torch.utils.data.IterableDataset):
         while True:
             idxs = np.random.randint(0, self.data_size, self.batch_size)
             idxs = np.squeeze(idxs)
-            traj_len = self.data["obs"].shape[1]
+            traj_len = self.data["obs"][0].shape[0]
             mask = np.ones([self.batch_size, traj_len, 1], dtype=np.float32)
             timestep = np.stack([np.arange(traj_len) for _ in idxs], axis=0)
             yield {
@@ -132,26 +131,38 @@ class RPLOfflineDataset(torch.utils.data.IterableDataset):
             }
 
     def load_dataset(self):
-        with open(self.path, "rb") as f:
+        train_or_eval = "eval" if self.eval else "train"
+        path = f"{prefix}/{self.variant}/{self.env_name}/preference_{train_or_eval}_data.npz"
+        with open(path, "rb") as f:
             data = np.load(f)
             data = utils.nest_dict(data)
             if self.capacity is not None:
                 data = utils.get_from_batch(data, 0, self.capacity)
         data = utils.remove_float64(data)
         lim = 1 - 1e-8
-        data["action"] = np.clip(data["action"], a_min=-lim, a_max=lim)
-        N, L = data["obs"].shape[:2]
+        data["action_1"] = np.clip(data["action_1"], a_min=-lim, a_max=lim)
+        data["action_2"] = np.clip(data["action_2"], a_min=-lim, a_max=lim)
+        N, L = data["obs_1"].shape[:2]
 
-        data["terminal"] = np.zeros([N, L, 1], dtype=np.bool_)
-        data["reward"] = np.zeros([N, L, 1], dtype=np.float32)
-        data["mask"] = np.ones([N, L, 1], dtype=np.float32)
+        data = {
+            "obs": np.stack([data["obs_1"], data["obs_2"]], axis=0).reshape(2*N, L, -1)[:, :-1],
+            "next_obs": np.stack([data["obs_1"], data["obs_2"]], axis=0).reshape(2*N, L, -1)[:, 1:],
+            "action": np.stack([data["action_1"], data["action_2"]], axis=0).reshape(2*N, L, -1)[:, :-1],
+        }
+        data["terminal"] = np.zeros([2*N, L-1, 1], dtype=np.bool_)
+        data["reward"] = np.zeros([2*N, L-1, 1], dtype=np.float32)
+        data["mask"] = np.ones([2*N, L-1, 1], dtype=np.float32)
 
-        self.traj_len = np.full(N, L)
-        self.data_size = N
-        if self.capacity is not None and self.capacity < self.data_size:
-            data = {k: data[k][:self.capacity] for k in data}
-            self.traj_len = self.traj_len[:self.capacity]
-            self.data_size = self.capacity
+        self.traj_len = np.asarray([o.shape[0] for o in data["obs"]])
+        self.data_size = len(self.traj_len)
+        if self.capacity is not None:
+            if self.capacity > self.data_size:
+                print(f"[Warning]: capacity {self.capacity} exceeds dataset size {self.data_size}")
+            self.data_size = min(self.data_size, self.capacity)
+            data = {
+                k: data[k][:self.data_size] for k in data
+            }
+            self.traj_len = self.traj_len[:self.data_size]
         self.data = data
 
     @torch.no_grad()
