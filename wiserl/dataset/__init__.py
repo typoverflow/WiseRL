@@ -11,6 +11,10 @@ from wiserl.dataset.metaworld_offline_dataset import (
     MetaworldComparisonDataset,
     MetaworldOfflineDataset,
 )
+from wiserl.dataset.rpl_dataset import (
+    RPLComparisonDataset,
+    RPLOfflineDataset,
+)
 from wiserl.dataset.mismatched_mujoco_dataset import (
     MismatchedComparisonDataset,
     MismatchedOfflineDataset,
