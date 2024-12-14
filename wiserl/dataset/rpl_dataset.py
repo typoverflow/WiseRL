@@ -149,8 +149,8 @@ class RPLOfflineDataset(torch.utils.data.IterableDataset):
             "next_obs": np.stack([data["next_obs_1"], data["next_obs_2"]], axis=0).reshape(2*N, L, -1),
             "action": np.stack([data["action_1"], data["action_2"]], axis=0).reshape(2*N, L, -1),
             "reward": np.stack([data["reward_1"], data["reward_2"]], axis=0).reshape(2*N, L, -1),
+            "terminal": np.stack([data["terminal_1"], data["terminal_2"]], axis=0).reshape(2*N, L, -1),
         }
-        data["terminal"] = np.zeros([2*N, L, 1], dtype=np.bool_)
         data["mask"] = np.ones([2*N, L, 1], dtype=np.float32)
 
         self.traj_len = np.asarray([o.shape[0] for o in data["obs"]])
