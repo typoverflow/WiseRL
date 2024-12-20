@@ -16,12 +16,12 @@ wandb:
   entity: null
   project: null
 
-env: Walker2d-v3
+env: HalfCheetah-v3
 env_kwargs:
 env_wrapper: MujocoParamOverWrite
 env_wrapper_kwargs:
   overwrite_args:
-    gravity: 1.5  # gravity-150
+    gravity: 0.5  # gravity-150
   do_scale: True
 
 eval_env: <env>
@@ -29,7 +29,7 @@ eval_env_kwargs:
 eval_env_wrapper: MujocoParamOverWrite
 eval_env_wrapper_kwargs:
   overwrite_args:
-    gravity: 0.1  # gravity-10
+    gravity: 0.5  # gravity-150
   do_scale: True
 
 optim:
@@ -65,8 +65,8 @@ rm_dataset:
     batch_size: 8
     segment_length: null
     label_key: rl_sum
-    variant: gravity-150
-    # capacity: 500
+    variant: gravity-50
+    capacity: 500
 rm_dataloader:
   num_workers: 2
   batch_size: null
@@ -75,8 +75,8 @@ rl_dataset:
   - class: RPLOfflineDataset
     env: <env>
     batch_size: 16
-    variant: gravity-10
-    # capacity: 5000
+    variant: gravity-50
+    capacity: 5000
 rl_dataloader:
   num_workers: 2
   batch_size: null
@@ -97,9 +97,9 @@ rm_eval:
     env: <env>
     batch_size: 32
     label_key: rl_sum
-    variant: gravity-10
+    variant: gravity-50
     eval: true
-    # capacity: 500
+    capacity: 500
 rl_eval:
   function: eval_offline
   num_ep: 10

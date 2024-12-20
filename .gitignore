@@ -12,3 +12,5 @@ datasets/
 shells/
 ckpts
 log_bkp/
+scripts/main.py 
+scripts/rmb_main.py

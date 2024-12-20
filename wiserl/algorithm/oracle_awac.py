@@ -97,20 +97,33 @@ class OracleAWAC(Algorithm):
 
     def train_step(self, batches, step:int, total_steps: int):
         batch, *_ = batches
-        obs = torch.cat([batch["obs_1"], batch["obs_2"]], dim=0)  # (B, S+1)
-        action = torch.cat([batch["action_1"], batch["action_2"]], dim=0)  # (B, S+1)
-        reward = torch.cat([batch["reward_1"], batch["reward_2"]], dim=0)
-        terminal = torch.cat([batch["terminal_1"], batch["terminal_2"]], dim=0)
+        if "obs_1" in batch:
+            obs = torch.cat([batch["obs_1"], batch["obs_2"]], dim=0)  # (B, S+1)
+            action = torch.cat([batch["action_1"], batch["action_2"]], dim=0)  # (B, S+1)
+            reward = torch.cat([batch["reward_1"], batch["reward_2"]], dim=0)
+            terminal = torch.cat([batch["terminal_1"], batch["terminal_2"]], dim=0)
 
-        encoded_obs = self.network.encoder(obs)
+            encoded_obs = self.network.encoder(obs)
 
-        q_loss, q_pred = self.q_loss(
-            encoded_obs[:, :-1].detach(),
-            action[:, :-1],
-            encoded_obs[:, 1:].detach(),
-            reward[:, :-1],
-            terminal[:, :-1]
-        )
+            q_loss, q_pred = self.q_loss(
+                encoded_obs[:, :-1].detach(),
+                action[:, :-1],
+                encoded_obs[:, 1:].detach(),
+                reward[:, :-1],
+                terminal[:, :-1]
+            )
+        else:
+            obs = batch["obs"]
+            action = batch["action"]
+            reward = batch["reward"]
+            terminal = batch["terminal"].float()
+            next_obs = batch["next_obs"]
+
+            encoded_obs = self.network.encoder(obs)
+            next_encoded_obs = self.network.encoder(next_obs)
+            
+            q_loss, q_pred = self.q_loss(encoded_obs, action, next_encoded_obs, reward, terminal)
+
         self.optim["critic"].zero_grad()
         q_loss.backward()
         self.optim["critic"].step()

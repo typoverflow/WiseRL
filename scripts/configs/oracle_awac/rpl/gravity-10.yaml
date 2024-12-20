@@ -1,7 +1,6 @@
 algorithm:
-  class: OracleIQL
+  class: OracleAWAC
   beta: 0.3333
-  expectile: 0.7
   max_exp_clip: 100.0
 
 checkpoint: null
@@ -19,7 +18,7 @@ env_kwargs:
 env_wrapper: MujocoParamOverWrite
 env_wrapper_kwargs:
   overwrite_args:
-    gravity: 1.5  # gravity-150
+    gravity: 0.1  # gravity-10
   do_scale: True
 
 optim:
@@ -30,26 +29,25 @@ optim:
 network:
   actor:
     class: SquashedGaussianActor
-    hidden_dims: [256, 256]
+    hidden_dims: [256, 256, 256]
     reparameterize: false
-    conditioned_logstd: false
+    conditioned_logstd: true
     logstd_min: -5
     logstd_max: 2
   critic:
     class: Critic
     ensemble_size: 2
-    hidden_dims: [256, 256]
+    hidden_dims: [256, 256, 256]
   value:
     class: Critic
     ensemble_size: 1
-    hidden_dims: [256, 256]
+    hidden_dims: [256, 256, 256]
 
 dataset:
   - class: RPLOfflineDataset
     env: <env>
-    batch_size: 16
-    variant: gravity-150
-    mode: "trajectory"
+    batch_size: 512
+    variant: gravity-10
     # capacity: 5000
 dataloader:
   num_workers: 2

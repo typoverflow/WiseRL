@@ -1,7 +1,6 @@
 algorithm:
-  class: BTIQL
+  class: BTAWAC
   beta: 0.3333
-  expectile: 0.7
   max_exp_clip: 100.0
   reward_reg: 0.0
   rm_label: true
@@ -74,7 +73,7 @@ rm_dataloader:
 rl_dataset:
   - class: RPLOfflineDataset
     env: <env>
-    batch_size: 16
+    batch_size: 64
     variant: gravity-10
     # capacity: 5000
 rl_dataloader:

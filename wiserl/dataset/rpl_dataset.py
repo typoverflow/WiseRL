@@ -33,7 +33,7 @@ class RPLComparisonDataset(torch.utils.data.IterableDataset):
         self.variant = variant
         self.eval = eval
         train_or_eval = "eval" if eval else "train"
-        path = f"{prefix}/{variant}/{self.env_name}/preference_{train_or_eval}_data.npz"
+        path = f"{prefix}/{self.env_name}-{variant}/preference_{train_or_eval}_data.npz" #f"{prefix}/{variant}/{self.env_name}/preference_{train_or_eval}_data.npz"
         with open(path, "rb") as f:
             data = np.load(f)
             data = utils.nest_dict(data)
@@ -100,7 +100,7 @@ class RPLOfflineDataset(torch.utils.data.IterableDataset):
     ):
         super().__init__()
         assert mode in {"transition", "trajectory"}
-
+        self.mode = mode
         self.env_name = env
         self.batch_size = 1 if batch_size is None else batch_size
         # self.segment_length = segment_length
@@ -131,30 +131,75 @@ class RPLOfflineDataset(torch.utils.data.IterableDataset):
             }
 
     def load_dataset(self):
-        train_or_eval = "eval" if self.eval else "train"
-        path = f"{prefix}/{self.variant}/{self.env_name}/preference_{train_or_eval}_data.npz"
-        with open(path, "rb") as f:
-            data = np.load(f)
-            data = utils.nest_dict(data)
-            if self.capacity is not None:
-                data = utils.get_from_batch(data, 0, self.capacity)
-        data = utils.remove_float64(data)
-        lim = 1 - 1e-8
-        data["action_1"] = np.clip(data["action_1"], a_min=-lim, a_max=lim)
-        data["action_2"] = np.clip(data["action_2"], a_min=-lim, a_max=lim)
-        N, L = data["obs_1"].shape[:2]
+        # Using preference datasets
+        if self.mode == "trajectory":
+            train_or_eval = "eval" if self.eval else "train"
+            path = f"{prefix}/{self.env_name}-{self.variant}/preference_{train_or_eval}_data.npz" #f"{prefix}/{self.variant}/{self.env_name}/preference_{train_or_eval}_data.npz"        
+            with open(path, "rb") as f:
+                data = np.load(f)
+                data = utils.nest_dict(data)
+                if self.capacity is not None:
+                    data = utils.get_from_batch(data, 0, self.capacity)
+            data = utils.remove_float64(data)
+            lim = 1 - 1e-8
+            data["action_1"] = np.clip(data["action_1"], a_min=-lim, a_max=lim)
+            data["action_2"] = np.clip(data["action_2"], a_min=-lim, a_max=lim)
+            N, L = data["obs_1"].shape[:2]
 
-        data = {
-            "obs": np.stack([data["obs_1"], data["obs_2"]], axis=0).reshape(2*N, L, -1),
-            "next_obs": np.stack([data["next_obs_1"], data["next_obs_2"]], axis=0).reshape(2*N, L, -1),
-            "action": np.stack([data["action_1"], data["action_2"]], axis=0).reshape(2*N, L, -1),
-            "reward": np.stack([data["reward_1"], data["reward_2"]], axis=0).reshape(2*N, L, -1),
-            "terminal": np.stack([data["terminal_1"], data["terminal_2"]], axis=0).reshape(2*N, L, -1),
-        }
-        data["mask"] = np.ones([2*N, L, 1], dtype=np.float32)
+            data = {
+                "obs": np.stack([data["obs_1"], data["obs_2"]], axis=0).reshape(2*N, L, -1),
+                "next_obs": np.stack([data["next_obs_1"], data["next_obs_2"]], axis=0).reshape(2*N, L, -1),
+                "action": np.stack([data["action_1"], data["action_2"]], axis=0).reshape(2*N, L, -1),
+                "reward": np.stack([data["reward_1"], data["reward_2"]], axis=0).reshape(2*N, L, -1),
+                "terminal": np.stack([data["terminal_1"], data["terminal_2"]], axis=0).reshape(2*N, L, -1),
+            }
+            
+            data = {
+                "obs": data["obs"],
+                "next_obs":data["next_obs"],
+                "action": data["action"],
+                "reward": data["reward"],
+                "terminal": data["terminal"],
+            }
+            data["mask"] = np.ones([2*N, L, 1], dtype=np.float32)
 
-        self.traj_len = np.asarray([o.shape[0] for o in data["obs"]])
-        self.data_size = len(self.traj_len)
+            self.traj_len = np.asarray([o.shape[0] for o in data["obs"]])
+            self.data_size = len(self.traj_len)
+        else:
+            # Using offline datasets
+            path = f"{prefix}/{self.env_name}-{self.variant}/data.npz"
+            with open(path, "rb") as f:
+                data = np.load(f)
+                data = utils.nest_dict(data)
+                if self.capacity is not None:
+                    data = utils.get_from_batch(data, 0, self.capacity)
+            data = utils.remove_float64(data)
+            self.traj_len = np.sum(data['mask'],axis=-1)
+            obs_ = []
+            next_obs_ = []
+            action_ = []
+            reward_ = []
+            terminal_ = []
+            lim = 1 - 1e-8
+            data["action"] = np.clip(data["action"], a_min=-lim, a_max=lim)
+            for i in range(data['obs'].shape[0]):
+                obs_.extend(data['obs'][i][:int(self.traj_len[i])])
+                next_obs_.extend(data['next_obs'][i][:int(self.traj_len[i])])
+                action_.extend(data['action'][i][:int(self.traj_len[i])])
+                reward_.extend(data['reward'][i][:int(self.traj_len[i])])
+                terminal_.extend(data['terminal'][i][:int(self.traj_len[i])])
+                
+            
+            data = {
+                "obs": np.asarray(obs_),
+                "action": np.asarray(action_),
+                "next_obs": np.asarray(next_obs_),
+                "reward": np.asarray(reward_),
+                "terminal": np.asarray(terminal_),
+                "mask": np.ones([len(obs_), 1], dtype=np.float32),
+            }      
+            self.data_size = data["obs"].shape[0]
+
         if self.capacity is not None:
             if self.capacity > self.data_size:
                 print(f"[Warning]: capacity {self.capacity} exceeds dataset size {self.data_size}")
@@ -181,15 +226,30 @@ class RPLOfflineDataset(torch.utils.data.IterableDataset):
             reward = agent.select_reward(batch).detach().cpu().numpy()
             reward = reward * self.data["mask"][idx]
             self.data["reward"][idx] = reward
-
-        return_ = self.data["reward"].sum(1)
-        max_return = max(
-            abs(return_.max()),
-            abs(return_.min()),
-            return_.max() - return_.min(),
-            1.0
-        )
-        norm = 500. / max_return
-        self.data["reward"] *= norm
-        print(f"[RPLOfflineDataset]: return range: [{return_.min()}, {return_.max()}], multiplying norm factor {norm}.")
+        if self.mode == "trajectory":
+            return_ = self.data["reward"].sum(1)
+            max_return = max(
+                abs(return_.max()),
+                abs(return_.min()),
+                return_.max() - return_.min(),
+                1.0
+            )
+            # norm = 500. / max_return
+            # #print(f"norm: {norm} ")
+            # self.data["reward"] *= norm
+            # print(f"[RPLOfflineDataset]: return range: [{return_.min()}, {return_.max()}], multiplying norm factor {norm}.")
+            print(f"[RPLOfflineDataset]: return range: [{return_.min()}, {return_.max()}].")
+        else:
+            ep_reward_ = []
+            episode_reward = 0
+            N = self.data["reward"].shape[0]
+            for i in range(N):
+                episode_reward += self.data["reward"][i]
+                if self.data["terminal"][i]:
+                    ep_reward_.append(episode_reward)
+                    episode_reward = 0
+            max_return = max(abs(min(ep_reward_)).item(), abs(max(ep_reward_)).item(), (max(ep_reward_)-min(ep_reward_)).item(), 1.0)
+            norm = 1000 / max_return
+            self.data["reward"] *= norm
+            print(f"[D4RLOfflineDataset]: return range: [{min(ep_reward_)}, {max(ep_reward_)}], multiplying norm factor {norm}.")
 

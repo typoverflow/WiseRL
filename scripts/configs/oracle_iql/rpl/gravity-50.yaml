@@ -47,8 +47,9 @@ network:
 dataset:
   - class: RPLOfflineDataset
     env: <env>
-    batch_size: 16
+    batch_size: 16 #16
     variant: gravity-50
+    mode: "trajectory" #"transition"
     # capacity: 5000
 dataloader:
   num_workers: 2
@@ -57,7 +58,7 @@ dataloader:
 
 trainer:
   env_freq: null
-  total_steps: 500000
+  total_steps: 1000000
   log_freq: 500
   profile_freq: 500
   eval_freq: 5000

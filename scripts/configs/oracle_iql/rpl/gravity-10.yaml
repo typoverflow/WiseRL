@@ -57,7 +57,7 @@ dataloader:
 
 trainer:
   env_freq: null
-  total_steps: 500000
+  total_steps: 1000000
   log_freq: 500
   profile_freq: 500
   eval_freq: 5000

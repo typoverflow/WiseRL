@@ -173,7 +173,8 @@ class RPL_IQL(OracleIQL):
         with torch.no_grad():
             self.target_network.eval()
             q_old = self.target_network.critic(obs, action)
-            q_old = torch.min(q_old, dim=0)[0]
+            # q_old = torch.min(q_old, dim=0)[0]
+            q_old = torch.mean(q_old, dim=0)[0]
 
         # compute the loss for value network
         v_loss, v_pred = self.v_loss(obs.detach(), q_old)

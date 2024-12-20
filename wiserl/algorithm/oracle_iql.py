@@ -125,7 +125,8 @@ class OracleIQL(Algorithm):
         with torch.no_grad():
             self.target_network.eval()
             q_old = self.target_network.critic(encoded_obs, action)
-            q_old = torch.min(q_old, dim=0)[0]
+            # q_old = torch.min(q_old, dim=0)[0]
+            q_old = torch.mean(q_old, dim=0)[0]
 
         # compute the loss for value network
         v_loss, v_pred = self.v_loss(encoded_obs.detach(), q_old)
@@ -140,13 +141,20 @@ class OracleIQL(Algorithm):
         self.optim["actor"].step()
 
         # compute the loss for q, offset by 1
-        q_loss, q_pred = self.q_loss(
-            encoded_obs[:, :-1].detach(),
-            action[:, :-1],
-            encoded_obs[:, 1:].detach(),
-            reward[:, :-1],
-            terminal[:, :-1]
-        )
+        # Using trajectory
+        # q_loss, q_pred = self.q_loss(
+        #     encoded_obs[:, :-1].detach(),
+        #     action[:, :-1],
+        #     encoded_obs[:, 1:].detach(),
+        #     reward[:, :-1],
+        #     terminal[:, :-1]
+        # )
+
+        # Using transition
+        next_obs = batch["next_obs"]
+        next_encoded_obs = self.network.encoder(next_obs)
+        q_loss, q_pred = self.q_loss(encoded_obs, action, next_encoded_obs, reward, terminal)
+
         self.optim["critic"].zero_grad()
         q_loss.backward()
         self.optim["critic"].step()

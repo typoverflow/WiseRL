@@ -1,7 +1,6 @@
 algorithm:
-  class: BTIQL
+  class: BTAWAC
   beta: 0.3333
-  expectile: 0.7
   max_exp_clip: 100.0
   reward_reg: 0.0
   rm_label: true
@@ -21,7 +20,7 @@ env_kwargs:
 env_wrapper: MujocoParamOverWrite
 env_wrapper_kwargs:
   overwrite_args:
-    gravity: 1.5  # gravity-150
+    gravity: 0.1  # gravity-10
   do_scale: True
 
 eval_env: <env>
@@ -65,7 +64,7 @@ rm_dataset:
     batch_size: 8
     segment_length: null
     label_key: rl_sum
-    variant: gravity-150
+    variant: gravity-10
     # capacity: 500
 rm_dataloader:
   num_workers: 2
@@ -74,7 +73,7 @@ rm_dataloader:
 rl_dataset:
   - class: RPLOfflineDataset
     env: <env>
-    batch_size: 16
+    batch_size: 64
     variant: gravity-10
     # capacity: 5000
 rl_dataloader:

@@ -1,7 +1,6 @@
 algorithm:
-  class: OracleIQL
+  class: OracleAWAC
   beta: 0.3333
-  expectile: 0.7
   max_exp_clip: 100.0
 
 checkpoint: null
@@ -14,12 +13,12 @@ wandb:
   entity: null
   project: null
 
-env: Walker2d-v3
+env: HalfCheetah-v3
 env_kwargs:
 env_wrapper: MujocoParamOverWrite
 env_wrapper_kwargs:
   overwrite_args:
-    gravity: 1.5  # gravity-150
+    gravity: 0.8  # gravity-150
   do_scale: True
 
 optim:
@@ -48,9 +47,8 @@ dataset:
   - class: RPLOfflineDataset
     env: <env>
     batch_size: 16
-    variant: gravity-150
-    mode: "trajectory"
-    # capacity: 5000
+    variant: gravity-80
+    capacity: 5000
 dataloader:
   num_workers: 2
   batch_size: null
