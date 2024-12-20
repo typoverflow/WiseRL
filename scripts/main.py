@@ -12,6 +12,23 @@ from wiserl.env import get_env
 from wiserl.trainer.offline_trainer import OfflineTrainer
 from wiserl.utils.utils import use_placeholder
 
+# python scripts/main.py --config scripts/configs/oracle_iql/rpl/halfcheetah-gravity-150.yaml --name halfcheetah-gravity-150-oracle-iql-rpl
+# python scripts/main.py --config scripts/configs/oracle_iql/rpl/halfcheetah-gravity-80.yaml --name halfcheetah-gravity-80-oracle-iql-rpl
+# python scripts/main.py --config scripts/configs/oracle_iql/rpl/halfcheetah-gravity-50.yaml --name halfcheetah-gravity-50-oracle-iql-rpl
+
+
+# python scripts/main.py --config scripts/configs/oracle_iql/rpl/gravity-10.yaml --name Walker2d-v3-gravity-10-oracle-iql-rpl
+# python scripts/main.py --config scripts/configs/oracle_iql/rpl/gravity-50.yaml --name Walker2d-v3-gravity-50-oracle-iql-rpl
+# python scripts/main.py --config scripts/configs/oracle_iql/rpl/gravity-100.yaml --name Walker2d-v3-gravity-100-oracle-iql-rpl
+# python scripts/main.py --config scripts/configs/oracle_iql/rpl/gravity-150.yaml --name Walker2d-v3-gravity-150-oracle-iql-rpl
+
+# python scripts/main.py --config scripts/configs/oracle_awac/rpl/gravity-10.yaml --name Walker2d-v3-gravity-10-oracle-awac-rpl
+# python scripts/main.py --config scripts/configs/oracle_awac/rpl/gravity-50.yaml --name Walker2d-v3-gravity-50-oracle-awac-rpl
+# python scripts/main.py --config scripts/configs/oracle_awac/rpl/gravity-100.yaml --name Walker2d-v3-gravity-100-oracle-awac-rpl
+# python scripts/main.py --config scripts/configs/oracle_awac/rpl/gravity-150.yaml --name Walker2d-v3-gravity-150-oracle-awac-rpl
+
+#python scripts/main.py --config scripts/configs/oracle_iql/rpl/gravity-100-test.yaml --name Walker2d-medium-gravity-100-test-oracle-iql
+
 if __name__ == "__main__":
     args = parse_args(convert=False, post_init=use_placeholder)
     name_prefix = f"{args['algorithm']['class']}/{args['name']}/{args['env']}"
@@ -31,7 +48,10 @@ if __name__ == "__main__":
 
     # process the environment
     env_fn = functools.partial(get_env, args["env"], args["env_kwargs"], args["env_wrapper"], args["env_wrapper_kwargs"])
-    eval_env_fn = functools.partial(get_env, args["env"], args["env_kwargs"], args["env_wrapper"], args["env_wrapper_kwargs"])
+    if "eval_env" in args:
+        eval_env_fn = functools.partial(get_env, args["eval_env"], args["eval_env_kwargs"], args["eval_env_wrapper"], args["eval_env_wrapper_kwargs"])
+    else:
+        eval_env_fn = functools.partial(get_env, args["env"], args["env_kwargs"], args["env_wrapper"], args["env_wrapper_kwargs"])
     env = env_fn()
 
     # define the algorithm

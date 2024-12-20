@@ -1,0 +1,74 @@
+algorithm:
+  class: OracleIQL
+  beta: 0.3333
+  expectile: 0.7
+  max_exp_clip: 100.0
+
+checkpoint: null
+seed: 0
+name: default
+debug: false
+device: null
+wandb:
+  activate: false
+  entity: null
+  project: null
+
+env: Walker2d-v3
+env_kwargs:
+env_wrapper: MujocoParamOverWrite
+env_wrapper_kwargs:
+  overwrite_args:
+    gravity: 1.0  # gravity-10
+  do_scale: True
+
+optim:
+  default:
+    class: Adam
+    lr: 0.0003
+
+network:
+  actor:
+    class: SquashedGaussianActor
+    hidden_dims: [256, 256, 256]
+    reparameterize: false
+    conditioned_logstd: true
+    logstd_min: -5
+    logstd_max: 2
+  critic:
+    class: Critic
+    ensemble_size: 2
+    hidden_dims: [256, 256, 256]
+  value:
+    class: Critic
+    ensemble_size: 1
+    hidden_dims: [256, 256, 256]
+
+dataset:
+  - class: D4RLOfflineDataset
+    env: walker2d-medium
+    batch_size: 512
+    # capacity: 5000
+dataloader:
+  num_workers: 2
+  batch_size: null
+
+
+trainer:
+  env_freq: null
+  total_steps: 1000000
+  log_freq: 500
+  profile_freq: 500
+  eval_freq: 5000
+
+eval:
+  function: eval_offline
+  num_ep: 10
+  deterministic: true
+
+schedulers:
+  actor:
+    class: CosineAnnealingLR
+    T_max: 500000
+
+processor: null

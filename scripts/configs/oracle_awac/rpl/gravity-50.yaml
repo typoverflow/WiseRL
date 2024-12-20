@@ -1,10 +1,7 @@
 algorithm:
-  class: BTIQL
+  class: OracleAWAC
   beta: 0.3333
-  expectile: 0.7
   max_exp_clip: 100.0
-  reward_reg: 0.0
-  rm_label: true
 
 checkpoint: null
 seed: 0
@@ -16,10 +13,13 @@ wandb:
   entity: null
   project: null
 
-env: hopper-medium-replay-v2
+env: Walker2d-v3
 env_kwargs:
-env_wrapper:
+env_wrapper: MujocoParamOverWrite
 env_wrapper_kwargs:
+  overwrite_args:
+    gravity: 0.5  # gravity-50
+  do_scale: True
 
 optim:
   default:
@@ -27,11 +27,6 @@ optim:
     lr: 0.0003
 
 network:
-  reward:
-    class: EnsembleMLP
-    ensemble_size: 1
-    hidden_dims: [256, 256]
-    reward_act: sigmoid
   actor:
     class: SquashedGaussianActor
     hidden_dims: [256, 256]
@@ -48,44 +43,25 @@ network:
     ensemble_size: 1
     hidden_dims: [256, 256]
 
-rm_dataset:
-  - class: RPLComparisonOfflineDataset
+dataset:
+  - class: RPLOfflineDataset
     env: <env>
-    batch_size: 8
-    segment_length: null
-    mode: human
-rm_dataloader:
+    batch_size: 16
+    variant: gravity-50
+    # capacity: 5000
+dataloader:
   num_workers: 2
   batch_size: null
 
-rl_dataset:
-  - class: D4RLOfflineDataset
-    env: <env>
-    batch_size: 256
-    mode: transition
-    reward_normalize: true
-rl_dataloader:
-  num_workers: 2
-  batch_size: null
 
 trainer:
   env_freq: null
-  rm_label: true
-  rm_steps: 50000
-  rl_steps: 1000000
+  total_steps: 1000000
   log_freq: 500
   profile_freq: 500
   eval_freq: 5000
 
-rm_eval:
-  function: eval_reward_model
-  eval_dataset_kwargs:
-    class: IPLComparisonOfflineDataset
-    env: <env>
-    batch_size: 32
-    mode: human
-    eval: false
-rl_eval:
+eval:
   function: eval_offline
   num_ep: 10
   deterministic: true
@@ -93,6 +69,6 @@ rl_eval:
 schedulers:
   actor:
     class: CosineAnnealingLR
-    T_max: 1000000
+    T_max: 500000
 
 processor: null

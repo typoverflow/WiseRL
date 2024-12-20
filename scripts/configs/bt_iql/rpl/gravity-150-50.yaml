@@ -16,10 +16,21 @@ wandb:
   entity: null
   project: null
 
-env: hopper-medium-replay-v2
+env: Walker2d-v3
 env_kwargs:
-env_wrapper:
+env_wrapper: MujocoParamOverWrite
 env_wrapper_kwargs:
+  overwrite_args:
+    gravity: 1.5  # gravity-150
+  do_scale: True
+
+eval_env: <env>
+eval_env_kwargs:
+eval_env_wrapper: MujocoParamOverWrite
+eval_env_wrapper_kwargs:
+  overwrite_args:
+    gravity: 0.5  # gravity-50
+  do_scale: True
 
 optim:
   default:
@@ -49,21 +60,23 @@ network:
     hidden_dims: [256, 256]
 
 rm_dataset:
-  - class: RPLComparisonOfflineDataset
+  - class: RPLComparisonDataset
     env: <env>
     batch_size: 8
     segment_length: null
-    mode: human
+    label_key: rl_sum
+    variant: gravity-150
+    # capacity: 500
 rm_dataloader:
   num_workers: 2
   batch_size: null
 
 rl_dataset:
-  - class: D4RLOfflineDataset
+  - class: RPLOfflineDataset
     env: <env>
-    batch_size: 256
-    mode: transition
-    reward_normalize: true
+    batch_size: 16
+    variant: gravity-50
+    # capacity: 5000
 rl_dataloader:
   num_workers: 2
   batch_size: null
@@ -71,7 +84,7 @@ rl_dataloader:
 trainer:
   env_freq: null
   rm_label: true
-  rm_steps: 50000
+  rm_steps: 100000
   rl_steps: 1000000
   log_freq: 500
   profile_freq: 500
@@ -80,11 +93,13 @@ trainer:
 rm_eval:
   function: eval_reward_model
   eval_dataset_kwargs:
-    class: IPLComparisonOfflineDataset
+    class: RPLComparisonDataset
     env: <env>
     batch_size: 32
-    mode: human
-    eval: false
+    label_key: rl_sum
+    variant: gravity-50
+    eval: true
+    # capacity: 500
 rl_eval:
   function: eval_offline
   num_ep: 10

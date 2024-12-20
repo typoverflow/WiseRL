@@ -12,6 +12,29 @@ from wiserl.env import get_env
 from wiserl.trainer.rmb_offline_trainer import RewardModelBasedOfflineTrainer
 from wiserl.utils.utils import use_placeholder
 
+# python scripts/rmb_main.py --config scripts/configs/bt_iql/rpl/halfcheetah-gravity-80-150.yaml --name halfcheetah-gravity-80-150-bt-iql-rpl
+# python scripts/rmb_main.py --config scripts/configs/bt_iql/rpl/halfcheetah-gravity-80-80.yaml --name halfcheetah-gravity-80-80-bt-iql-rpl
+# python scripts/rmb_main.py --config scripts/configs/bt_iql/rpl/halfcheetah-gravity-150-150.yaml --name halfcheetah-gravity-150-150-bt-iql-rpl
+
+# python scripts/rmb_main.py --config scripts/configs/bt_iql/rpl/gravity-50-50.yaml --name Walker2d-v3-gravity-50-50-bt-iql-rpl
+# python scripts/rmb_main.py --config scripts/configs/bt_iql/rpl/gravity-100-100.yaml --name Walker2d-v3-gravity-100-100-bt-iql-rpl
+# python scripts/rmb_main.py --config scripts/configs/bt_iql/rpl/gravity-150-150.yaml --name Walker2d-v3-gravity-150-150-bt-iql-rpl
+# python scripts/rmb_main.py --config scripts/configs/bt_iql/rpl/gravity-50-100.yaml --name Walker2d-v3-gravity-50-100-bt-iql-rpl
+# python scripts/rmb_main.py --config scripts/configs/bt_iql/rpl/gravity-50-150.yaml --name Walker2d-v3-gravity-50-150-bt-iql-rpl
+# python scripts/rmb_main.py --config scripts/configs/bt_iql/rpl/gravity-150-50.yaml --name Walker2d-v3-gravity-150-50-bt-iql-rpl
+# python scripts/rmb_main.py --config scripts/configs/bt_iql/rpl/gravity-150-100.yaml --name Walker2d-v3-gravity-150-100-bt-iql-rpl
+# python scripts/rmb_main.py --config scripts/configs/bt_iql/rpl/gravity-100-100-b1-e9.yaml --name Walker2d-v3-gravity-100-100-bt-iql-rpl-b1-e9
+
+
+# python scripts/rmb_main.py --config scripts/configs/bt_awac/rpl/gravity-50-50.yaml --name Walker2d-v3-gravity-50-50-bt-awac-rpl
+# python scripts/rmb_main.py --config scripts/configs/bt_awac/rpl/gravity-100-100.yaml --name Walker2d-v3-gravity-100-100-bt-awac-rpl
+# python scripts/rmb_main.py --config scripts/configs/bt_awac/rpl/gravity-150-150.yaml --name Walker2d-v3-gravity-150-150-bt-awac-rpl
+# python scripts/rmb_main.py --config scripts/configs/bt_awac/rpl/gravity-50-100.yaml --name Walker2d-v3-gravity-50-100-bt-awac-rpl
+# python scripts/rmb_main.py --config scripts/configs/bt_awac/rpl/gravity-50-150.yaml --name Walker2d-v3-gravity-50-150-bt-awac-rpl
+# python scripts/rmb_main.py --config scripts/configs/bt_awac/rpl/gravity-150-50.yaml --name Walker2d-v3-gravity-150-50-bt-awac-rpl
+
+
+
 if __name__ == "__main__":
     args = parse_args(convert=False, post_init=use_placeholder)
     name_prefix = f"{args['algorithm']['class']}/{args['name']}/{args['env']}"
@@ -31,7 +54,10 @@ if __name__ == "__main__":
 
     # process the environment
     env_fn = functools.partial(get_env, args["env"], args["env_kwargs"], args["env_wrapper"], args["env_wrapper_kwargs"])
-    eval_env_fn = functools.partial(get_env, args["env"], args["env_kwargs"], args["env_wrapper"], args["env_wrapper_kwargs"])
+    if "eval_env" in args:
+        eval_env_fn = functools.partial(get_env, args["eval_env"], args["eval_env_kwargs"], args["eval_env_wrapper"], args["eval_env_wrapper_kwargs"])
+    else:
+        eval_env_fn = functools.partial(get_env, args["env"], args["env_kwargs"], args["env_wrapper"], args["env_wrapper_kwargs"])
     env = env_fn()
 
     # define the algorithm
