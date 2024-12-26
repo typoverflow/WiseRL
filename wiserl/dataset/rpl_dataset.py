@@ -23,6 +23,7 @@ class RPLComparisonDataset(torch.utils.data.IterableDataset):
         label_key: str="rl_sum",
         variant: str = "gravity-50",
         eval: bool = False,
+        replay: bool = False,
     ):
         super().__init__()
 
@@ -33,7 +34,8 @@ class RPLComparisonDataset(torch.utils.data.IterableDataset):
         self.variant = variant
         self.eval = eval
         train_or_eval = "eval" if eval else "train"
-        path = f"{prefix}/{self.env_name}-{variant}/preference_{train_or_eval}_data.npz" #f"{prefix}/{variant}/{self.env_name}/preference_{train_or_eval}_data.npz"
+        replay_or_none = "replay_" if replay else ""
+        path = f"{prefix}/{self.env_name}-{variant}/{replay_or_none}preference_{train_or_eval}_data.npz" #f"{prefix}/{variant}/{self.env_name}/preference_{train_or_eval}_data.npz"
         with open(path, "rb") as f:
             data = np.load(f)
             data = utils.nest_dict(data)
@@ -97,6 +99,7 @@ class RPLOfflineDataset(torch.utils.data.IterableDataset):
         mode: str = "transition",
         variant: str = "gravity-50",
         eval: bool = False,
+        replay: bool = False,
     ):
         super().__init__()
         assert mode in {"transition", "trajectory"}
@@ -107,6 +110,7 @@ class RPLOfflineDataset(torch.utils.data.IterableDataset):
         self.capacity = capacity
         self.variant = variant
         self.eval = eval
+        self.replay = replay
 
         self.load_dataset()
 
@@ -134,7 +138,8 @@ class RPLOfflineDataset(torch.utils.data.IterableDataset):
         # Using preference datasets
         if self.mode == "trajectory":
             train_or_eval = "eval" if self.eval else "train"
-            path = f"{prefix}/{self.env_name}-{self.variant}/preference_{train_or_eval}_data.npz" #f"{prefix}/{self.variant}/{self.env_name}/preference_{train_or_eval}_data.npz"        
+            replay_or_none = "replay_" if self.replay else ""
+            path = f"{prefix}/{self.env_name}-{self.variant}/{replay_or_none}preference_{train_or_eval}_data.npz" #f"{prefix}/{self.variant}/{self.env_name}/preference_{train_or_eval}_data.npz"        
             with open(path, "rb") as f:
                 data = np.load(f)
                 data = utils.nest_dict(data)
