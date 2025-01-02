@@ -97,6 +97,7 @@ class OracleIQL(Algorithm):
         elif isinstance(self.network.actor, GaussianActor):
             policy_out = - self.network.actor.evaluate(encoded_obs, action)[0]
         actor_loss = (exp_advantage * policy_out)
+        # actor_loss = policy_out
         return actor_loss.mean() if reduce else actor_loss, advantage
 
     def q_loss(self, encoded_obs, action, next_encoded_obs, reward, terminal, reduce=True):
@@ -125,8 +126,8 @@ class OracleIQL(Algorithm):
         with torch.no_grad():
             self.target_network.eval()
             q_old = self.target_network.critic(encoded_obs, action)
-            # q_old = torch.min(q_old, dim=0)[0]
-            q_old = torch.mean(q_old, dim=0)[0]
+            q_old = torch.min(q_old, dim=0)[0]
+            # q_old = torch.mean(q_old, dim=0)[0]
 
         # compute the loss for value network
         v_loss, v_pred = self.v_loss(encoded_obs.detach(), q_old)

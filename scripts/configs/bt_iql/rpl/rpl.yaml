@@ -1,6 +1,7 @@
 algorithm:
-  class: BTAWAC
+  class: BTIQL
   beta: 0.3333
+  expectile: 0.7
   max_exp_clip: 100.0
   reward_reg: 0.0
   rm_label: true
@@ -15,12 +16,18 @@ wandb:
   entity: null
   project: null
 
-env: Walker2d-v3
+src_gravity: 0.5
+src_variant: gravity-50
+tgt_gravity: 1.5
+tgt_variant: gravity-150
+replay: false
+
+env: HalfCheetah-v3
 env_kwargs:
 env_wrapper: MujocoParamOverWrite
 env_wrapper_kwargs:
   overwrite_args:
-    gravity: 1.5  # gravity-150
+    gravity: <src_gravity>  # gravity-150
   do_scale: True
 
 eval_env: <env>
@@ -28,7 +35,7 @@ eval_env_kwargs:
 eval_env_wrapper: MujocoParamOverWrite
 eval_env_wrapper_kwargs:
   overwrite_args:
-    gravity: 1.5  # gravity-150
+    gravity: <tgt_gravity>  # gravity-150
   do_scale: True
 
 optim:
@@ -64,8 +71,9 @@ rm_dataset:
     batch_size: 8
     segment_length: null
     label_key: rl_sum
-    variant: gravity-150
-    # capacity: 500
+    variant: <src_variant>
+    replay: <replay>
+
 rm_dataloader:
   num_workers: 2
   batch_size: null
@@ -73,9 +81,10 @@ rm_dataloader:
 rl_dataset:
   - class: RPLOfflineDataset
     env: <env>
-    batch_size: 64
-    variant: gravity-150
-    # capacity: 5000
+    batch_size: 256
+    variant: <tgt_variant>
+    replay: <replay>
+
 rl_dataloader:
   num_workers: 2
   batch_size: null
@@ -83,7 +92,7 @@ rl_dataloader:
 trainer:
   env_freq: null
   rm_label: true
-  rm_steps: 50000
+  rm_steps: 100000
   rl_steps: 1000000
   log_freq: 500
   profile_freq: 500
@@ -96,9 +105,10 @@ rm_eval:
     env: <env>
     batch_size: 32
     label_key: rl_sum
-    variant: gravity-150
+    variant: <src_variant>
     eval: true
-    # capacity: 500
+    replay: <replay>
+
 rl_eval:
   function: eval_offline
   num_ep: 10

@@ -13,12 +13,15 @@ wandb:
   entity: null
   project: null
 
+gravity: 1.0
+variant: gravity-100
+
 env: HalfCheetah-v3
 env_kwargs:
 env_wrapper: MujocoParamOverWrite
 env_wrapper_kwargs:
   overwrite_args:
-    gravity: 1.5  # gravity-150
+    gravity: <gravity>
   do_scale: True
 
 optim:
@@ -38,17 +41,13 @@ network:
     class: Critic
     ensemble_size: 2
     hidden_dims: [256, 256]
-  value:
-    class: Critic
-    ensemble_size: 1
-    hidden_dims: [256, 256]
-
+  
 dataset:
   - class: RPLOfflineDataset
     env: <env>
-    batch_size: 16
-    variant: gravity-150
-    capacity: 5000
+    batch_size: 256
+    variant: <variant>
+
 dataloader:
   num_workers: 2
   batch_size: null

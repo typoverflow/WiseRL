@@ -23,6 +23,7 @@ class RPLComparisonDataset(torch.utils.data.IterableDataset):
         label_key: str="rl_sum",
         variant: str = "gravity-50",
         eval: bool = False,
+        replay: bool = False,
     ):
         super().__init__()
 
@@ -33,7 +34,10 @@ class RPLComparisonDataset(torch.utils.data.IterableDataset):
         self.variant = variant
         self.eval = eval
         train_or_eval = "eval" if eval else "train"
-        path = f"{prefix}/{self.env_name}-{variant}/preference_{train_or_eval}_data.npz" #f"{prefix}/{variant}/{self.env_name}/preference_{train_or_eval}_data.npz"
+        if replay:
+            path = f"{prefix}/{self.env_name}/{variant}/replay_preference_{train_or_eval}_data.npz"
+        else:
+            path = f"{prefix}/{self.env_name}/{variant}/preference_{train_or_eval}_data.npz"        
         with open(path, "rb") as f:
             data = np.load(f)
             data = utils.nest_dict(data)
@@ -97,6 +101,7 @@ class RPLOfflineDataset(torch.utils.data.IterableDataset):
         mode: str = "transition",
         variant: str = "gravity-50",
         eval: bool = False,
+        replay: bool = False,
     ):
         super().__init__()
         assert mode in {"transition", "trajectory"}
@@ -107,6 +112,7 @@ class RPLOfflineDataset(torch.utils.data.IterableDataset):
         self.capacity = capacity
         self.variant = variant
         self.eval = eval
+        self.replay = replay
 
         self.load_dataset()
 
@@ -134,7 +140,9 @@ class RPLOfflineDataset(torch.utils.data.IterableDataset):
         # Using preference datasets
         if self.mode == "trajectory":
             train_or_eval = "eval" if self.eval else "train"
-            path = f"{prefix}/{self.env_name}-{self.variant}/preference_{train_or_eval}_data.npz" #f"{prefix}/{self.variant}/{self.env_name}/preference_{train_or_eval}_data.npz"        
+            replay_or_none = 'replay_' if self.replay else ""
+            
+            path = f"{prefix}/{self.env_name}/{self.variant}/{replay_or_none}preference_{train_or_eval}_data.npz"
             with open(path, "rb") as f:
                 data = np.load(f)
                 data = utils.nest_dict(data)
@@ -167,7 +175,11 @@ class RPLOfflineDataset(torch.utils.data.IterableDataset):
             self.data_size = len(self.traj_len)
         else:
             # Using offline datasets
-            path = f"{prefix}/{self.env_name}-{self.variant}/data.npz"
+            if self.replay:
+                path = f"{prefix}/{self.env_name}/{self.variant}/replay.npz"
+            else:
+                path = f"{prefix}/{self.env_name}/{self.variant}/data.npz"
+            
             with open(path, "rb") as f:
                 data = np.load(f)
                 data = utils.nest_dict(data)
@@ -180,15 +192,17 @@ class RPLOfflineDataset(torch.utils.data.IterableDataset):
             action_ = []
             reward_ = []
             terminal_ = []
+            timeout_ = []
             lim = 1 - 1e-8
             data["action"] = np.clip(data["action"], a_min=-lim, a_max=lim)
+            data['timeout'] = np.squeeze(data['timeout'])
             for i in range(data['obs'].shape[0]):
                 obs_.extend(data['obs'][i][:int(self.traj_len[i])])
                 next_obs_.extend(data['next_obs'][i][:int(self.traj_len[i])])
                 action_.extend(data['action'][i][:int(self.traj_len[i])])
                 reward_.extend(data['reward'][i][:int(self.traj_len[i])])
                 terminal_.extend(data['terminal'][i][:int(self.traj_len[i])])
-                
+                timeout_.extend(data['timeout'][i][:int(self.traj_len[i])])            
             
             data = {
                 "obs": np.asarray(obs_),
@@ -196,6 +210,7 @@ class RPLOfflineDataset(torch.utils.data.IterableDataset):
                 "next_obs": np.asarray(next_obs_),
                 "reward": np.asarray(reward_),
                 "terminal": np.asarray(terminal_),
+                "timeout": np.asarray(timeout_),
                 "mask": np.ones([len(obs_), 1], dtype=np.float32),
             }      
             self.data_size = data["obs"].shape[0]
@@ -245,11 +260,10 @@ class RPLOfflineDataset(torch.utils.data.IterableDataset):
             N = self.data["reward"].shape[0]
             for i in range(N):
                 episode_reward += self.data["reward"][i]
-                if self.data["terminal"][i]:
+                if self.data["terminal"][i] or self.data["timeout"][i]:
                     ep_reward_.append(episode_reward)
                     episode_reward = 0
             max_return = max(abs(min(ep_reward_)).item(), abs(max(ep_reward_)).item(), (max(ep_reward_)-min(ep_reward_)).item(), 1.0)
             norm = 1000 / max_return
             self.data["reward"] *= norm
             print(f"[D4RLOfflineDataset]: return range: [{min(ep_reward_)}, {max(ep_reward_)}], multiplying norm factor {norm}.")
-

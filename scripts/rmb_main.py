@@ -21,6 +21,7 @@ from wiserl.utils.utils import use_placeholder
 # python scripts/rmb_main.py --config scripts/configs/bt_iql/rpl/gravity-150-150.yaml --name Walker2d-v3-gravity-150-150-bt-iql-rpl
 # python scripts/rmb_main.py --config scripts/configs/bt_iql/rpl/gravity-50-100.yaml --name Walker2d-v3-gravity-50-100-bt-iql-rpl
 # python scripts/rmb_main.py --config scripts/configs/bt_iql/rpl/gravity-50-150.yaml --name Walker2d-v3-gravity-50-150-bt-iql-rpl
+# python scripts/rmb_main.py --config scripts/configs/bt_iql/rpl/gravity-100-150.yaml --name Walker2d-v3-gravity-100-150-bt-iql-rpl
 # python scripts/rmb_main.py --config scripts/configs/bt_iql/rpl/gravity-150-50.yaml --name Walker2d-v3-gravity-150-50-bt-iql-rpl
 # python scripts/rmb_main.py --config scripts/configs/bt_iql/rpl/gravity-150-100.yaml --name Walker2d-v3-gravity-150-100-bt-iql-rpl
 # python scripts/rmb_main.py --config scripts/configs/bt_iql/rpl/gravity-100-100-b1-e9.yaml --name Walker2d-v3-gravity-100-100-bt-iql-rpl-b1-e9
