@@ -51,7 +51,7 @@ def call_mujoco_env(env_name: str) -> gym.Env:
                 max_episode_steps=1000          
             )
         else:
-            print("env_name {env_name} is illegal or not implemented")
+            # print("env_name {env_name} is illegal or not implemented")
             raise NotImplementedError
     elif "halfcheetah" in env_name:
         if env_name == 'halfcheetah':
@@ -72,7 +72,7 @@ def call_mujoco_env(env_name: str) -> gym.Env:
                 max_episode_steps=1000          
             )
         else:
-            print("env_name {env_name} is illegal or not implemented")
+            # print("env_name {env_name} is illegal or not implemented")
             raise NotImplementedError
     elif "walker2d" in env_name:
         if env_name == 'walker2d':
@@ -93,7 +93,7 @@ def call_mujoco_env(env_name: str) -> gym.Env:
                 max_episode_steps=1000          
             )
         else:
-            print("env_name {env_name} is illegal or not implemented")
+            # print("env_name {env_name} is illegal or not implemented")
             raise NotImplementedError
     elif 'ant' in env_name:
         if env_name == 'ant':
@@ -114,8 +114,8 @@ def call_mujoco_env(env_name: str) -> gym.Env:
                 max_episode_steps=1000          
             )
         else:
-            print("env_name {env_name} is illegal or not implemented")
+            # print("env_name {env_name} is illegal or not implemented")
             raise NotImplementedError
     else:
-        print("env_name {env_name} is illegal or not implemented")
+        # print("env_name {env_name} is illegal or not implemented")
         raise NotImplementedError
