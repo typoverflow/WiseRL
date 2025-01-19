@@ -9,7 +9,7 @@ import torch
 
 from wiserl.utils import utils
 
-prefix = "datasets/rpl"
+prefix = "/nfs/fsj/WiseRL/datasets/rpl"
 
 class RPLComparisonDataset(torch.utils.data.IterableDataset):
     def __init__(
@@ -21,6 +21,7 @@ class RPLComparisonDataset(torch.utils.data.IterableDataset):
         batch_size: Optional[int] = None,
         capacity: Optional[int] = None,
         label_key: str="rl_sum",
+        odrl: bool = False,
         variant: str = "gravity-50",
         eval: bool = False,
         replay: bool = False,
@@ -34,10 +35,11 @@ class RPLComparisonDataset(torch.utils.data.IterableDataset):
         self.variant = variant
         self.eval = eval
         train_or_eval = "eval" if eval else "train"
+        mid_name = f"collect_odrl/{self.env_name}" if odrl else f"{self.env_name}/{variant}"
         if replay:
-            path = f"{prefix}/{self.env_name}/{variant}/replay_preference_{train_or_eval}_data.npz"
+            path = f"{prefix}/{mid_name}/replay_preference_{train_or_eval}_data.npz"
         else:
-            path = f"{prefix}/{self.env_name}/{variant}/preference_{train_or_eval}_data.npz"        
+            path = f"{prefix}/{mid_name}/preference_{train_or_eval}_data.npz"        
         with open(path, "rb") as f:
             data = np.load(f)
             data = utils.nest_dict(data)
@@ -99,6 +101,7 @@ class RPLOfflineDataset(torch.utils.data.IterableDataset):
         batch_size: Optional[int] = None,
         capacity: Optional[int] = None,
         mode: str = "transition",
+        odrl: bool = False,
         variant: str = "gravity-50",
         eval: bool = False,
         replay: bool = False,
@@ -110,6 +113,7 @@ class RPLOfflineDataset(torch.utils.data.IterableDataset):
         self.batch_size = 1 if batch_size is None else batch_size
         # self.segment_length = segment_length
         self.capacity = capacity
+        self.odrl = odrl
         self.variant = variant
         self.eval = eval
         self.replay = replay
@@ -138,11 +142,12 @@ class RPLOfflineDataset(torch.utils.data.IterableDataset):
 
     def load_dataset(self):
         # Using preference datasets
+        mid_name = f"collect_odrl/{self.env_name}" if self.odrl else f"{self.env_name}/{self.variant}"
         if self.mode == "trajectory":
             train_or_eval = "eval" if self.eval else "train"
             replay_or_none = 'replay_' if self.replay else ""
             
-            path = f"{prefix}/{self.env_name}/{self.variant}/{replay_or_none}preference_{train_or_eval}_data.npz"
+            path = f"{prefix}/{mid_name}/{replay_or_none}preference_{train_or_eval}_data.npz"
             with open(path, "rb") as f:
                 data = np.load(f)
                 data = utils.nest_dict(data)
@@ -176,9 +181,9 @@ class RPLOfflineDataset(torch.utils.data.IterableDataset):
         else:
             # Using offline datasets
             if self.replay:
-                path = f"{prefix}/{self.env_name}/{self.variant}/replay.npz"
+                path = f"{prefix}/{mid_name}/replay.npz"
             else:
-                path = f"{prefix}/{self.env_name}/{self.variant}/data.npz"
+                path = f"{prefix}/{mid_name}/data.npz"
             
             with open(path, "rb") as f:
                 data = np.load(f)

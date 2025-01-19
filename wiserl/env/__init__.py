@@ -5,6 +5,7 @@ from typing import Dict, Optional
 import gym
 import UtilsRL.env.wrapper
 from gym.envs import register
+from wiserl.env.odrl_envs.mujoco.call_mujoco_env import call_mujoco_env
 
 from .base import EmptyEnv
 from .cliffwalking_env import CliffWalkingEnv
@@ -53,7 +54,10 @@ def get_env(
         env_kwargs = env_kwargs or {}
         env = extra_envs[env](**env_kwargs)
     except KeyError as e:
-        env = gym.make(env, **env_kwargs)
+        try:
+            env = call_mujoco_env(env)
+        except Exception as e:
+            env = gym.make(env, **env_kwargs)
     if wrapper_class is not None:
         wrapper_kwargs = wrapper_kwargs or {}
         env = vars(UtilsRL.env.wrapper)[wrapper_class](env, **wrapper_kwargs)
