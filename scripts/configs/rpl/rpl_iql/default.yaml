@@ -1,0 +1,113 @@
+algorithm:
+  class: RPL_IQL
+  num_tasks: 4    # number of tasks
+  alpha: 0.7      # expectile for Eq. 8
+  expectile: 0.7  # expectile of IQL
+  beta: 0.3333    # inv. temperature of IQL
+  max_exp_clip: 100.0
+
+checkpoint: null
+seed: 0
+name: default
+debug: false
+device: null
+wandb:
+  activate: false
+  entity: null
+  project: null
+
+gravity: 1.0        # perform RL on gravity=1.0
+variant: gravity-100
+replay: false
+
+env: HalfCheetah-v3
+env_kwargs:
+env_wrapper: MujocoParamOverWrite
+env_wrapper_kwargs:
+  overwrite_args:
+    gravity: <gravity>
+  do_scale: True
+
+optim:
+  default:
+    class: Adam
+    lr: 0.0003
+
+network:
+  actor:
+    class: SquashedGaussianActor
+    hidden_dims: [256, 256]
+    reparameterize: false
+    conditioned_logstd: false
+    logstd_min: -5
+    logstd_max: 2
+  critic:
+    class: Critic
+    ensemble_size: 2
+    hidden_dims: [256, 256]
+  value:
+    class: Critic
+    ensemble_size: 1
+    hidden_dims: [256, 256]
+  reward: 
+    class: EnsembleMLP
+    ensemble_size: 1
+    hidden_dims: [256, 256]
+    reward_act: sigmoid
+  optimal: 
+    class: Critic
+    ensemble_size: 2
+    hidden_dims: [256, 256]
+
+rm_dataset:
+  - class: <ToBeDetermined>  # please fill in the class and parameters here
+    env: <env>
+    batch_size: 256
+    variant: gravity-100
+    capacity: 5000
+rm_dataloader:
+  num_workers: 2
+  batch_size: null
+
+rl_dataset: 
+  - class: RPLOfflineDataset
+    env: <env>
+    batch_size: 256
+    variant: <variant>
+    replay: <replay>
+rl_dataloader: 
+  num_workers: 2
+  batch_size: null
+
+
+trainer:
+  env_freq: null
+  rm_label: true
+  rm_steps: 100000
+  rl_steps: 1000000
+  log_freq: 500
+  profile_freq: 500
+  eval_freq: 5000
+
+rm_eval:
+  function: eval_reward_model
+  eval_dataset_kwargs:
+    class: RPLComparisonDataset
+    env: <env>
+    batch_size: 32
+    label_key: rl_sum
+    variant: <src_variant>
+    eval: true
+    replay: <replay>
+
+rl_eval:
+  function: eval_offline
+  num_ep: 10
+  deterministic: true
+
+schedulers:
+  actor:
+    class: CosineAnnealingLR
+    T_max: 1000000
+
+processor: null
