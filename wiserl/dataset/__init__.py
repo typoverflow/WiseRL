@@ -19,6 +19,7 @@ from wiserl.dataset.mismatched_mujoco_dataset import (
     MismatchedComparisonDataset,
     MismatchedOfflineDataset,
 )
+from wiserl.dataset.multi_rpl_dataset import MultiRPLComparisonDataset
 
 from .replay_buffer import ReplayBuffer
 

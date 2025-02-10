@@ -15,3 +15,5 @@ log_bkp/
 scripts/main.py 
 scripts/rmb_main.py
 output.txt
+gravity*
+*.sh

@@ -7,30 +7,34 @@ import torch
 import torch.nn as nn
 
 import wiserl.module
-from wiserl.algorithm.oracle_awac import OracleAWAC
+from wiserl.algorithm.oracle_td3bc import OracleTD3BC
 from wiserl.utils.misc import make_target, sync_target
 
 
-class BTAWAC(OracleAWAC):
+class BTTD3BC(OracleTD3BC):
     def __init__(
         self,
         *args,
-        beta: float = 0.3333,
-        max_exp_clip: float = 100.0,
+        alpha: float = 0.2, 
+        policy_noise: float = 0.2, 
+        noise_clip: float = 0.5, 
+        max_action: float = 1.0, 
         discount: float = 0.99,
         tau: float = 0.005,
-        target_freq: int = 1,
+        actor_update_interval: int = 2,
         reward_reg: float = 0.0,
         rm_label: bool = True,
         **kwargs
     ) -> None:
         super().__init__(
             *args,
-            beta=beta,
-            max_exp_clip=max_exp_clip,
+            alpha=alpha, 
+            policy_noise=policy_noise, 
+            noise_clip=noise_clip, 
+            max_action=max_action, 
             discount=discount,
             tau=tau,
-            target_freq=target_freq,
+            actor_update_interval=actor_update_interval,
             **kwargs
         )
         self.reward_reg = reward_reg
@@ -105,42 +109,85 @@ class BTAWAC(OracleAWAC):
         return metrics
 
     def train_step(self, batches, step: int, total_steps: int) -> Dict:
-        rl_batch = batches[0]
-        obs, action, next_obs, terminal = itemgetter("obs", "action", "next_obs", "terminal")(rl_batch)
-        terminal = terminal.float()
-        if self.rm_label:
-            reward = itemgetter("reward")(rl_batch)
+        # rl_batch = batches[0]
+        # metrics = {}
+        # obs, action, next_obs, terminal = itemgetter("obs", "action", "next_obs", "terminal")(rl_batch)
+        # terminal = terminal.float()
+        # if self.rm_label:
+        #     reward = itemgetter("reward")(rl_batch)
+        # else:
+        #     with torch.no_grad():
+        #         reward = self.select_reward({"obs": obs, "action": action}, deterministic=True)
+
+        # q_loss, q_metrics = self.q_loss(obs, action, next_obs, reward, terminal)
+        # metrics.update(q_metrics)
+        # self.optim["critic"].zero_grad()
+        # q_loss.backward()
+        # self.optim["critic"].step()
+
+        # if step % self.actor_update_interval == 0:
+        #     actor_loss, actor_metrics = self.actor_loss(obs, action)
+        #     metrics.update(actor_metrics)
+        #     self.optim["actor"].zero_grad()
+        #     actor_loss.backward()
+        #     self.optim["actor"].step()
+            
+        #     sync_target(self.network.critic, self.target_network.critic, tau=self.tau)
+        #     sync_target(self.network.actor, self.target_network.actor, tau=self.tau)
+
+        # for _, scheduler in self.schedulers.items():
+        #     scheduler.step()
+
+        # return metrics
+        batch, *_ = batches
+        metrics = {}
+        if "obs_1" in batch:
+            obs = torch.cat([batch["obs_1"], batch["obs_2"]], dim=0)  # (B, S+1)
+            action = torch.cat([batch["action_1"], batch["action_2"]], dim=0)  # (B, S+1)
+            reward = torch.cat([batch["reward_1"], batch["reward_2"]], dim=0)
+            terminal = torch.cat([batch["terminal_1"], batch["terminal_2"]], dim=0)
+
+            encoded_obs = self.network.encoder(obs)
+
+            q_loss, q_pred = self.q_loss(
+                encoded_obs[:, :-1].detach(),
+                action[:, :-1],
+                encoded_obs[:, 1:].detach(),
+                reward[:, :-1],
+                terminal[:, :-1]
+            )
         else:
-            with torch.no_grad():
-                reward = self.select_reward({"obs": obs, "action": action}, deterministic=True)
+            obs = batch["obs"]
+            action = batch["action"]
+            reward = batch["reward"]
+            terminal = batch["terminal"].float()
+            next_obs = batch["next_obs"]
 
-        # compute the loss for actor
-        actor_loss, advantage, exp_advantage= self.actor_loss(obs, action)
-        self.optim["actor"].zero_grad()
-        actor_loss.backward()
-        self.optim["actor"].step()
-
-        # compute the loss for q, offset by 1
-        q_loss, q_pred = self.q_loss(obs, action, next_obs, reward, terminal)
+            encoded_obs = self.network.encoder(obs)
+            next_encoded_obs = self.network.encoder(next_obs)
+            
+            q_loss, q_metrics = self.q_loss(encoded_obs, action, next_encoded_obs, reward, terminal)
+        metrics.update(q_metrics)
         self.optim["critic"].zero_grad()
         q_loss.backward()
         self.optim["critic"].step()
 
+        # compute the loss for actor
+        if step % self.actor_update_interval == 0:
+            actor_loss, actor_metrics = self.actor_loss(encoded_obs, action)
+            metrics.update(actor_metrics)
+            self.optim["actor"].zero_grad()
+            actor_loss.backward()
+            self.optim["actor"].step()
+            
+            sync_target(self.network.critic, self.target_network.critic, tau=self.tau)
+            sync_target(self.network.actor, self.target_network.actor, tau=self.tau)
+
         for _, scheduler in self.schedulers.items():
             scheduler.step()
 
-        if step % self.target_freq == 0:
-            sync_target(self.network.critic, self.target_network.critic, tau=self.tau)
-
-        metrics = {
-            "loss/q_loss": q_loss.item(),
-            "loss/actor_loss": actor_loss.item(),
-            "misc/q_pred": q_pred.mean().item(),
-            "misc/advantage": advantage.mean().item(),
-            "misc/exp_advantage_mean": exp_advantage.mean().item(),
-            "misc/exp_advantage_std": exp_advantage.std().item()
-        }
         return metrics
+
 
     def load_pretrain(self, path):
         for attr in ["reward"]:

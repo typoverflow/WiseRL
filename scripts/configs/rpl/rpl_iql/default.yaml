@@ -1,6 +1,8 @@
+num_tasks: 4
+
 algorithm:
   class: RPL_IQL
-  num_tasks: 4    # number of tasks
+  num_tasks: <num_tasks>    # number of tasks
   alpha: 0.7      # expectile for Eq. 8
   expectile: 0.7  # expectile of IQL
   beta: 0.3333    # inv. temperature of IQL
@@ -16,17 +18,25 @@ wandb:
   entity: null
   project: null
 
-gravity: 1.0        # perform RL on gravity=1.0
-variant: gravity-100
-replay: false
+# gravity: 1.0        # perform RL on gravity=1.0
+# variant: gravity-100
+# replay: false
 
-env: HalfCheetah-v3
+# env: HalfCheetah-v3
+# env_kwargs:
+# env_wrapper: MujocoParamOverWrite
+# env_wrapper_kwargs:
+#   overwrite_args:
+#     gravity: <gravity>
+#   do_scale: True
+
+env: halfcheetah-gravity-1.0
 env_kwargs:
-env_wrapper: MujocoParamOverWrite
+env_wrapper:
 env_wrapper_kwargs:
-  overwrite_args:
-    gravity: <gravity>
-  do_scale: True
+
+replay: true
+label_key: rl_sum
 
 optim:
   default:
@@ -53,18 +63,22 @@ network:
     class: EnsembleMLP
     ensemble_size: 1
     hidden_dims: [256, 256]
-    reward_act: sigmoid
+    reward_act: identity #sigmoid
   optimal: 
     class: Critic
     ensemble_size: 2
     hidden_dims: [256, 256]
 
 rm_dataset:
-  - class: <ToBeDetermined>  # please fill in the class and parameters here
+  - class: MultiRPLComparisonDataset  # please fill in the class and parameters here
+    label_key: <label_key>
+    num_tasks: <num_tasks>
     env: <env>
-    batch_size: 256
+    task_name: 1.0-0.5-0.1-5.0
+    batch_size: 32 #8
     variant: gravity-100
-    capacity: 5000
+    odrl: true
+    # capacity: 5000
 rm_dataloader:
   num_workers: 2
   batch_size: null
@@ -73,8 +87,10 @@ rl_dataset:
   - class: RPLOfflineDataset
     env: <env>
     batch_size: 256
-    variant: <variant>
+    #variant: <variant>
     replay: <replay>
+    odrl: true
+
 rl_dataloader: 
   num_workers: 2
   batch_size: null
@@ -95,10 +111,11 @@ rm_eval:
     class: RPLComparisonDataset
     env: <env>
     batch_size: 32
-    label_key: rl_sum
+    label_key: <label_key>
     variant: <src_variant>
     eval: true
     replay: <replay>
+    odrl: true
 
 rl_eval:
   function: eval_offline

@@ -1,10 +1,12 @@
 algorithm:
-  class: BTIQL
-  beta: 0.3333
-  expectile: 0.7
-  max_exp_clip: 100.0
-  reward_reg: 0.0
-  rm_label: true
+  class: BTTD3BC
+  alpha: 0.2
+  policy_noise: 0.2
+  noise_clip: 0.5
+  max_action: 1.0
+  discount: 0.99
+  tau: 0.005
+  actor_update_interval: 2
 
 checkpoint: null
 seed: 0
@@ -16,10 +18,10 @@ wandb:
   entity: null
   project: null
 
-src_gravity: 0.5
-src_variant: gravity-50
-tgt_gravity: 1.5
-tgt_variant: gravity-150
+src_gravity: 1.0
+src_variant: gravity-100
+tgt_gravity: 1.0
+tgt_variant: gravity-100
 replay: false
 
 env: HalfCheetah-v3
@@ -48,22 +50,15 @@ network:
     class: EnsembleMLP
     ensemble_size: 1
     hidden_dims: [256, 256]
-    reward_act: sigmoid
+    reward_act: identity #sigmoid
   actor:
-    class: SquashedGaussianActor
+    class: SquashedDeterministicActor
     hidden_dims: [256, 256]
-    reparameterize: false
-    conditioned_logstd: false
-    logstd_min: -5
-    logstd_max: 2
   critic:
     class: Critic
     ensemble_size: 2
     hidden_dims: [256, 256]
-  value:
-    class: Critic
-    ensemble_size: 1
-    hidden_dims: [256, 256]
+
 
 rm_dataset:
   - class: RPLComparisonDataset
@@ -92,11 +87,12 @@ rl_dataloader:
 trainer:
   env_freq: null
   rm_label: true
-  rm_steps: 100000
-  rl_steps: 1000000
+  rm_steps: 1000000
+  rl_steps: 500000
   log_freq: 500
   profile_freq: 500
   eval_freq: 5000
+  load_rm_path: <src_variant>
 
 rm_eval:
   function: eval_reward_model

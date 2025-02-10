@@ -1,21 +1,25 @@
 envs=("HalfCheetah-v3")
 src_gravity_variant_pairs=(
+  "0.1:gravity-10"
   "0.5:gravity-50"
   "1.0:gravity-100"
   "1.5:gravity-150"
+  "3.0:gravity-300"
 )
 tgt_gravity_variant_pairs=(
+  # "0.1:gravity-10"
   # "0.5:gravity-50"
   # "1.0:gravity-100"
-  "1.5:gravity-150"
+  # "1.5:gravity-150"
+  "3.0:gravity-300"
 )
 algorithm=("bt_awac")
 info=${1:-""}
 
 # 遍历参数组合
 for env in "${envs[@]}"; do
-  for pair1 in "${src_gravity_variant_pairs[@]}"; do
-    for pair2 in "${tgt_gravity_variant_pairs[@]}"; do
+  for pair2 in "${tgt_gravity_variant_pairs[@]}"; do
+    for pair1 in "${src_gravity_variant_pairs[@]}"; do
       # 分割 gravity 和 variant
       src_gravity=$(echo $pair1 | cut -d':' -f1)
       src_variant=$(echo $pair1 | cut -d':' -f2)
@@ -33,8 +37,7 @@ for env in "${envs[@]}"; do
         --src_variant $src_variant \
         --tgt_gravity $tgt_gravity \
         --tgt_variant $tgt_variant \
-        --replay true \
-        > output.txt
+        --replay true 
     done
   done
 done

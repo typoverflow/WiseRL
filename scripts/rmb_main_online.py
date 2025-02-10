@@ -9,7 +9,7 @@ from UtilsRL.logger import CompositeLogger
 import wandb
 import wiserl.algorithm
 from wiserl.env import get_env
-from wiserl.trainer.rmb_offline_trainer import RewardModelBasedOfflineTrainer
+from wiserl.trainer.rmb_online_trainer import RewardModelBasedOnlineTrainer
 from wiserl.utils.utils import use_placeholder
 
 # python scripts/rmb_main.py --config scripts/configs/bt_iql/rpl/halfcheetah-gravity-80-150.yaml --name halfcheetah-gravity-80-150-bt-iql-rpl
@@ -34,7 +34,7 @@ from wiserl.utils.utils import use_placeholder
 # python scripts/rmb_main.py --config scripts/configs/bt_awac/rpl/gravity-50-150.yaml --name Walker2d-v3-gravity-50-150-bt-awac-rpl
 # python scripts/rmb_main.py --config scripts/configs/bt_awac/rpl/gravity-150-50.yaml --name Walker2d-v3-gravity-150-50-bt-awac-rpl
 
-
+# 
 
 if __name__ == "__main__":
     # import debugpy
@@ -79,15 +79,14 @@ if __name__ == "__main__":
     )
 
     # define the trainer
-    trainer = RewardModelBasedOfflineTrainer(
+    trainer = RewardModelBasedOnlineTrainer(
         algorithm=algorithm,
         env_fn=env_fn,
         eval_env_fn=eval_env_fn,
         rm_dataset_kwargs=args["rm_dataset"],
         rm_dataloader_kwargs=args["rm_dataloader"],
         rm_eval_kwargs=args["rm_eval"],
-        rl_dataset_kwargs=args["rl_dataset"],
-        rl_dataloader_kwargs=args["rl_dataloader"],
+        **args["buffer"],
         rl_eval_kwargs=args["rl_eval"],
         **args["trainer"],
         logger=logger,

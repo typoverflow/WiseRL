@@ -25,7 +25,8 @@ eval_env_kwargs:
 eval_env_wrapper:
 eval_env_wrapper_kwargs:
 
-replay: false
+replay: true
+label_key: rl_sum
 
 optim:
   default:
@@ -37,7 +38,7 @@ network:
     class: EnsembleMLP
     ensemble_size: 1
     hidden_dims: [256, 256]
-    reward_act: sigmoid
+    reward_act: identity #sigmoid
   actor:
     class: SquashedGaussianActor
     hidden_dims: [256, 256]
@@ -56,7 +57,7 @@ rm_dataset:
     env: <env>
     batch_size: 8
     segment_length: null
-    label_key: rl_sum
+    label_key: <label_key>
     replay: <replay>
     odrl: true
 
@@ -88,9 +89,9 @@ rm_eval:
   function: eval_reward_model
   eval_dataset_kwargs:
     class: RPLComparisonDataset
-    env: <env>
+    env: <eval_env> #<env>
     batch_size: 32
-    label_key: rl_sum
+    label_key: <label_key>
     eval: true
     replay: <replay>
     odrl: true

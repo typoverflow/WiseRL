@@ -1,33 +1,40 @@
 import itertools
-from typing import Any, Dict, Optional, Type
+from typing import Any, Dict, Optional, Type, Union, Tuple
 
 import torch
 import torch.nn as nn
 
 import wiserl.module
 from wiserl.algorithm.base import Algorithm
+from wiserl.module.actor import DeterministicActor, GaussianActor
 from wiserl.utils.misc import make_target, sync_target
 
 
-class OracleTD3BC(Algorithm):
+class OracleSAC(Algorithm):
     def __init__(
         self,
         *args,
-        alpha: float = 0.2, 
-        policy_noise: float = 0.2, 
-        noise_clip: float = 0.5, 
-        max_action: float = 1.0, 
+        alpha: Union[float, Tuple[float, float]] = 0.2,
+        auto_alpha: bool = False,
         discount: float = 0.99,
         tau: float = 0.005,
-        actor_udpate_interval: int = 2,
+        target_freq: int = 1,
         **kwargs
     ) -> None:
         super().__init__(*args, **kwargs)
-        self.alpha = alpha
-        self.policy_noise = policy_noise
-        self.noise_clip = noise_clip
-        self.max_action = max_action
-        self.actor_update_interval = actor_udpate_interval
+        self._is_auto_alpha = auto_alpha
+        if self._is_auto_alpha:
+            target_entropy = -float(self.action_space.shape[-1])
+            alpha_lr = alpha
+            self._log_alpha = nn.Parameter(torch.tensor([0.0], dtype=torch.float32, device=self.device), requires_grad=True)
+            self._target_entropy = target_entropy
+            self.alpha_optim = torch.optim.Adam([self._log_alpha], lr=alpha_lr)
+            self._alpha = self._log_alpha.detach().exp()
+        else:
+            self._alpha = torch.tensor([alpha], dtype=torch.float32, device=self.device, requires_grad=False)
+
+
+        self.target_freq = target_freq
         self.discount = discount
         self.tau = tau
 
@@ -53,7 +60,6 @@ class OracleTD3BC(Algorithm):
             network["encoder"] = nn.Identity()
         self.network = nn.ModuleDict(network)
         self.target_network = nn.ModuleDict({
-            "actor": make_target(self.network.actor), 
             "critic": make_target(self.network.critic)
         })
 
@@ -76,33 +82,44 @@ class OracleTD3BC(Algorithm):
         return action.squeeze().cpu().numpy()
 
     def actor_loss(self, encoded_obs, action, reduce=True):
-        new_actions = self.network.actor.sample(encoded_obs)[0]
-        new_q1 = self.network.critic(encoded_obs, new_actions)[0, ...]
-        bc_loss = torch.nn.functional.mse_loss(new_actions, action, reduce=None)
-        q_loss = - self.alpha / (new_q1.abs().mean().detach()) * new_q1
-        total_loss = bc_loss + q_loss
-        return total_loss.mean() if reduce else total_loss, {
-            "loss/q_guide_loss": q_loss.mean().item(), 
-            "loss/bc_loss": bc_loss.mean().item(), 
-        }
+        new_actions, new_logprobs, _ = self.network.actor.sample(encoded_obs)
+        q_values = self.network.critic(encoded_obs, new_actions)
+        if len(q_values.shape) == 2:
+            q_values = q_values.unsqueeze(0)
+        q_values_min = torch.min(q_values, dim=0)[0]
+        q_values_std = torch.std(q_values, dim=0).mean().item()
+        q_values_mean = q_values.mean().item()
+        actor_loss = self._alpha * new_logprobs - q_values_min
+
+        return actor_loss.mean() if reduce else actor_loss, {
+                                                            "loss/actor_loss": actor_loss.mean() if reduce else actor_loss,\
+                                                            "misc/q_values_std": q_values_std,\
+                                                              "misc/q_values_min": q_values_min.mean().item(),\
+                                                                "misc/q_values_mean": q_values_mean}
 
     def q_loss(self, encoded_obs, action, next_encoded_obs, reward, terminal, reduce=True):
         with torch.no_grad():
             self.target_network.eval()
-            next_actions = self.target_network.actor.sample(next_encoded_obs)[0]
-            noise = (torch.randn_like(next_actions) * self.policy_noise).clip(-self.noise_clip, self.noise_clip)
-            next_actions = (next_actions+noise).clip(-self.max_action, self.max_action)
-            target_q = self.target_network.critic(next_encoded_obs, next_actions).min(0)[0]
+            next_actions, next_logprobs, _ = self.network.actor.sample(next_encoded_obs)
+            target_q = self.target_network.critic(next_encoded_obs, next_actions).min(0)[0]- self._alpha * next_logprobs
             target_q = reward + self.discount * (1-terminal) * target_q
         q_pred = self.network.critic(encoded_obs, action)
         q_loss = (q_pred - target_q.unsqueeze(0)).pow(2).sum(0)
-        return q_loss.mean() if reduce else q_loss, {
-            "loss/critic_loss": q_loss.mean().item(), 
-            "misc/q_pred": q_pred.mean().item(), 
-        }
+        return q_loss.mean() if reduce else q_loss, {"loss/q_loss": q_loss.mean() if reduce else q_loss, "misc/q_pred":q_pred.mean() if reduce else q_pred}
 
-    def train_step(self, batches, step:int, total_steps: int):
-        batch, *_ = batches
+    def alpha_loss(self, encoded_obs, reduce=True):
+        with torch.no_grad():
+            _, new_logprobs, _ = self.network.actor.sample(encoded_obs)
+        alpha_loss = -(self._log_alpha * (new_logprobs + self._target_entropy)).mean()
+        return alpha_loss.mean() if reduce else alpha_loss
+    
+    def train_step(self, batches, step:int, total_steps: int): 
+        if isinstance(batches, list):
+            batch, *_ = batches
+        elif isinstance(batches, dict):
+            batch = batches
+        else:
+            assert 0,f'Undefined Type:{type(batches)}'
         metrics = {}
         if "obs_1" in batch:
             obs = torch.cat([batch["obs_1"], batch["obs_2"]], dim=0)  # (B, S+1)
@@ -130,23 +147,34 @@ class OracleTD3BC(Algorithm):
             next_encoded_obs = self.network.encoder(next_obs)
             
             q_loss, q_metrics = self.q_loss(encoded_obs, action, next_encoded_obs, reward, terminal)
+        
         metrics.update(q_metrics)
         self.optim["critic"].zero_grad()
         q_loss.backward()
         self.optim["critic"].step()
 
         # compute the loss for actor
-        if step % self.actor_update_interval == 0:
-            actor_loss, actor_metrics = self.actor_loss(encoded_obs, action)
-            metrics.update(actor_metrics)
-            self.optim["actor"].zero_grad()
-            actor_loss.backward()
-            self.optim["actor"].step()
-            
+        actor_loss, actor_metrics= self.actor_loss(encoded_obs, action)
+        self.optim["actor"].zero_grad()
+        actor_loss.backward()
+        self.optim["actor"].step()
+        metrics.update(actor_metrics)
+
+        if self._is_auto_alpha:
+            alpha_loss = self.alpha_loss(encoded_obs)
+            self.alpha_optim.zero_grad()
+            alpha_loss.backward()
+            self.alpha_optim.step()
+            self._alpha = self._log_alpha.exp().detach()
+        else:
+            alpha_loss = 0
+        metrics["misc/alpha"] = self._alpha.item()
+
+        if step % self.target_freq == 0:
             sync_target(self.network.critic, self.target_network.critic, tau=self.tau)
-            sync_target(self.network.actor, self.target_network.actor, tau=self.tau)
 
         for _, scheduler in self.schedulers.items():
             scheduler.step()
 
+        
         return metrics
