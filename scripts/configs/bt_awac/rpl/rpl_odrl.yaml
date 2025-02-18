@@ -15,12 +15,12 @@ wandb:
   entity: null
   project: null
 
-env: halfcheetah-gravity-5.0
+env: halfcheetah-gravity-2.0
 env_kwargs:
 env_wrapper:
 env_wrapper_kwargs:
 
-eval_env: halfcheetah-gravity-0.1
+eval_env: halfcheetah-gravity-1.0
 eval_env_kwargs:
 eval_env_wrapper:
 eval_env_wrapper_kwargs:

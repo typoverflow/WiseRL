@@ -1,4 +1,5 @@
 num_tasks: 4
+task_name: 0.1_0.5_1.0_5.0
 
 algorithm:
   class: RPL_IQL
@@ -7,6 +8,7 @@ algorithm:
   expectile: 0.7  # expectile of IQL
   beta: 0.3333    # inv. temperature of IQL
   max_exp_clip: 100.0
+  rm_label: true
 
 checkpoint: null
 seed: 0
@@ -74,7 +76,7 @@ rm_dataset:
     label_key: <label_key>
     num_tasks: <num_tasks>
     env: <env>
-    task_name: 1.0-0.5-0.1-5.0
+    task_name: <task_name>
     batch_size: 32 #8
     variant: gravity-100
     odrl: true
@@ -99,8 +101,8 @@ rl_dataloader:
 trainer:
   env_freq: null
   rm_label: true
-  rm_steps: 100000
-  rl_steps: 1000000
+  rm_steps: 1000000
+  rl_steps: 500000
   log_freq: 500
   profile_freq: 500
   eval_freq: 5000
@@ -111,8 +113,8 @@ rm_eval:
     class: RPLComparisonDataset
     env: <env>
     batch_size: 32
-    label_key: <label_key>
-    variant: <src_variant>
+    label_key: rl_reward_sum #<label_key>
+    #variant: <src_variant>
     eval: true
     replay: <replay>
     odrl: true

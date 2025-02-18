@@ -18,7 +18,7 @@ class MultiRPLComparisonDataset(torch.utils.data.IterableDataset):
         action_space,
         env: str,
         num_tasks: int = 4,
-        task_name: str = '1.0-0.5-0.1-5.0',
+        task_name: str = '1.0_0.5_0.1_5.0',
         segment_length: Optional[int] = None,
         batch_size: Optional[int] = None,
         capacity: Optional[int] = None,
@@ -38,9 +38,10 @@ class MultiRPLComparisonDataset(torch.utils.data.IterableDataset):
         self.eval = eval
         train_or_eval = "eval" if eval else "train"
         #mid_name = f"collect_odrl/{self.env_name}" if odrl else f"{self.env_name}/{variant}"
-        self.tasks = task_name.split('-')
+        self.tasks = task_name.split('_')
         task_prefix = '-'.join(env.split('-')[:-1])
-        assert len(self.tasks) == num_tasks
+        #assert len(self.tasks) == num_tasks
+        num_tasks = len(self.tasks)
 
         for i in range(num_tasks):
             mid_name = f"collect_odrl/{task_prefix+'-'+self.tasks[i]}" if odrl else f"{self.env_name}/{task_prefix+variant}"
