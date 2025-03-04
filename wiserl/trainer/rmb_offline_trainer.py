@@ -30,7 +30,6 @@ class RewardModelBasedOfflineTrainer(OfflineTrainer):
         rl_dataloader_kwargs: Optional[Sequence[Dict]] = None,
         rl_steps: int = 1000,
         rl_eval_kwargs: Optional[dict] = None,
-        rm_label: bool=False,
         load_rm_path: Optional[str] = None,
         save_rm_path: Optional[str] = None,
         log_freq: int = 100,
@@ -38,6 +37,8 @@ class RewardModelBasedOfflineTrainer(OfflineTrainer):
         eval_freq: int = 1000,
         profile_freq: int = -1,
         checkpoint_freq: Optional[int] = None,
+        label_reward: bool = True, 
+        normalize_reward: bool = False, 
         logger: Optional[BaseLogger] = None,
         device: Union[str, torch.device] = "cpu"
     ):
@@ -54,12 +55,14 @@ class RewardModelBasedOfflineTrainer(OfflineTrainer):
             eval_freq=eval_freq,
             profile_freq=profile_freq,
             checkpoint_freq=checkpoint_freq,
+            normalize_reward=normalize_reward, 
             logger=logger,
             device=device
         )
         self.rm_steps = rm_steps
         self.rl_steps = rl_steps
-        self.rm_label = rm_label
+        self.label_reward = label_reward
+        self.normalize_reward = normalize_reward
         self.load_rm_path = load_rm_path
         self.save_rm_path = save_rm_path
         # rm & rl datasets, dataloaders, and evals
@@ -108,12 +111,15 @@ class RewardModelBasedOfflineTrainer(OfflineTrainer):
         # finally train the rl agent
         self.logger.info(f"Setting up rl datasets and dataloaders ...")
         self._rl_datasets = self.setup_datasets(self.rl_dataset_kwargs)
-        if self.rm_label:
+        if self.label_reward:
             self.logger.info(f"Relabeling the reward using pretrained reward model ...")
             self.algorithm.eval()
             for d in self._rl_datasets:
                 d.relabel_reward(self.algorithm)
             self.algorithm.train()
+        if self.normalize_reward:
+            for d in self._rl_datasets:
+                d.normalize_reward()
         self._rl_dataloaders, self._rl_dataloaders_iter = self.setup_dataloaders(self._rl_datasets, self.rl_dataloader_kwargs)
         for step in trange(0, self.rl_steps+1, desc="RL"):
             batches = [next(d) for d in self._rl_dataloaders_iter]

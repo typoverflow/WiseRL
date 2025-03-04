@@ -247,7 +247,8 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
             reward = agent.select_reward(batch).detach().cpu().numpy()
             reward = reward * self.data["mask"][idx]
             self.data["reward"][idx] = reward
-
+    
+    def normalize_reward(self):
         if self.mode == "trajectory":
             # CHECK: may be bug. the max and min returns are not consistent with those computed in transition mode
             return_ = self.data["reward"].copy()

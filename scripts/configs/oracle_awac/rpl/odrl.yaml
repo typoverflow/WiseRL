@@ -13,16 +13,17 @@ wandb:
   entity: null
   project: null
 
-gravity: 1.0
-variant: gravity-100
+env: halfcheetah-gravity-1.0
+env_kwargs: 
+env_wrapper: 
+env_wrapper_kwargs: 
 
-env: HalfCheetah-v3
-env_kwargs:
-env_wrapper: MujocoParamOverWrite
-env_wrapper_kwargs:
-  overwrite_args:
-    gravity: <gravity>
-  do_scale: True
+eval_env: halfcheetah-gravity-1.0
+eval_env_kwargs:
+eval_env_wrapper:
+eval_env_wrapper_kwargs:
+
+replay: true
 
 optim:
   default:
@@ -32,7 +33,7 @@ optim:
 network:
   actor:
     class: SquashedGaussianActor
-    hidden_dims: [256, 256]
+    hidden_dims: [256, 256, 256]
     reparameterize: false
     conditioned_logstd: false
     logstd_min: -5
@@ -40,13 +41,14 @@ network:
   critic:
     class: Critic
     ensemble_size: 2
-    hidden_dims: [256, 256]
+    hidden_dims: [256, 256, 256]
   
 dataset:
   - class: RPLOfflineDataset
     env: <env>
     batch_size: 256
-    variant: <variant>
+    replay: <replay>
+    odrl: true
 
 dataloader:
   num_workers: 2
@@ -58,7 +60,8 @@ trainer:
   total_steps: 500000
   log_freq: 500
   profile_freq: 500
-  eval_freq: 10000
+  eval_freq: 5000
+  normalize_reward: true
 
 eval:
   function: eval_offline

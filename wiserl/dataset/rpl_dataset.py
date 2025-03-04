@@ -248,6 +248,8 @@ class RPLOfflineDataset(torch.utils.data.IterableDataset):
             reward = agent.select_reward(batch).detach().cpu().numpy()
             reward = reward * self.data["mask"][idx]
             self.data["reward"][idx] = reward
+
+    def normalize_reward(self):
         if self.mode == "trajectory":
             return_ = self.data["reward"].sum(1)
             max_return = max(

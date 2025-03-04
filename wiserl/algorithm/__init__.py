@@ -17,3 +17,4 @@ from wiserl.algorithm.bt.bt_td3bc import BTTD3BC
 from wiserl.algorithm.oracle_sac import OracleSAC
 from wiserl.algorithm.bt.bt_sac import BTSAC
 from wiserl.algorithm.rpl.rpl_iql import RPL_IQL
+from wiserl.algorithm.rpl.rpl_awac import RPL_AWAC
