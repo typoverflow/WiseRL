@@ -49,7 +49,7 @@ network:
     hidden_dims: [256, 256]
 
 rm_dataset:
-  - class: IPLComparisonOfflineDataset
+  - class: RPLComparisonOfflineDataset
     env: <env>
     batch_size: 8
     segment_length: null

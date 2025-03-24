@@ -115,7 +115,7 @@ class BTAWAC(OracleAWAC):
                 reward = self.select_reward({"obs": obs, "action": action}, deterministic=True)
 
         # compute the loss for actor
-        actor_loss, advantage = self.actor_loss(obs, action)
+        actor_loss, advantage, exp_advantage= self.actor_loss(obs, action)
         self.optim["actor"].zero_grad()
         actor_loss.backward()
         self.optim["actor"].step()
@@ -136,7 +136,9 @@ class BTAWAC(OracleAWAC):
             "loss/q_loss": q_loss.item(),
             "loss/actor_loss": actor_loss.item(),
             "misc/q_pred": q_pred.mean().item(),
-            "misc/advantage": advantage.mean().item()
+            "misc/advantage": advantage.mean().item(),
+            "misc/exp_advantage_mean": exp_advantage.mean().item(),
+            "misc/exp_advantage_std": exp_advantage.std().item()
         }
         return metrics
 

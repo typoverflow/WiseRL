@@ -1,0 +1,111 @@
+algorithm:
+  class: BTSAC
+  alpha: 0.2
+  auto_alpha: false #true
+
+checkpoint: null
+seed: 0
+name: default
+debug: false
+device: null
+wandb:
+  activate: false
+  entity: null
+  project: null
+
+src_gravity: 1.0
+src_variant: gravity-100
+tgt_gravity: 1.0
+tgt_variant: gravity-100
+replay: false
+
+env: HalfCheetah-v3
+env_kwargs:
+env_wrapper: MujocoParamOverWrite
+env_wrapper_kwargs:
+  overwrite_args:
+    gravity: <src_gravity>  # gravity-150
+  do_scale: True
+
+eval_env: <env>
+eval_env_kwargs:
+eval_env_wrapper: MujocoParamOverWrite
+eval_env_wrapper_kwargs:
+  overwrite_args:
+    gravity: <tgt_gravity>  # gravity-150
+  do_scale: True
+
+optim:
+  default:
+    class: Adam
+    lr: 0.0003
+
+network:
+  reward:
+    class: EnsembleMLP
+    ensemble_size: 1
+    hidden_dims: [256, 256]
+    reward_act: identity #sigmoid
+  actor:
+    class: SquashedGaussianActor
+    hidden_dims: [256, 256]
+    logstd_min: -20
+    logstd_max: 2
+  critic:
+    class: Critic
+    ensemble_size: 2
+    hidden_dims: [256, 256]
+
+
+rm_dataset:
+  - class: RPLComparisonDataset
+    env: <env>
+    batch_size: 8
+    segment_length: null
+    label_key: rl_sum
+    variant: <src_variant>
+    replay: <replay>
+
+rm_dataloader:
+  num_workers: 2
+  batch_size: null
+
+buffer:
+  max_buffer_size: 1000000
+  batch_size: 256
+
+trainer:
+  random_policy_step: 1000 #5000
+  warmup_step: 2000
+  max_trajectory_length: 1000
+  env_freq: null
+  rm_label: true
+  rm_steps: 1000000
+  rl_steps: 500000
+  log_freq: 500
+  profile_freq: 500
+  eval_freq: 5000
+  load_rm_path: <src_variant>
+
+rm_eval:
+  function: eval_reward_model
+  eval_dataset_kwargs:
+    class: RPLComparisonDataset
+    env: <env>
+    batch_size: 32
+    label_key: rl_sum
+    variant: <tgt_variant>
+    eval: true
+    replay: <replay>
+
+rl_eval:
+  function: eval_offline
+  num_ep: 10
+  deterministic: true
+
+schedulers:
+  actor:
+    class: CosineAnnealingLR
+    T_max: 1000000
+
+processor: null

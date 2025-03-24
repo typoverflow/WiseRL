@@ -27,12 +27,11 @@ class RPL_IQL(OracleIQL):
         discount: float = 0.99,
         tau: float = 0.005,
         target_freq: int = 1,
+        rm_label: bool = True,
         **kwargs
-    ):
-        self.num_tasks = num_tasks
-        self.alpha = alpha
-        self.reward_reg = reward_reg
-        self.reward_criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
+    ):    
+        self.num_tasks = num_tasks    
+        # self.reward_criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
         super().__init__(
             *args,
             expectile=expectile,
@@ -43,6 +42,11 @@ class RPL_IQL(OracleIQL):
             target_freq=target_freq,
             **kwargs
         )
+        
+        self.rm_label = rm_label
+        self.alpha = alpha
+        self.reward_reg = reward_reg
+        self.reward_criterion = torch.nn.BCEWithLogitsLoss(reduction="none")
         self.obs_dim = self.observation_space.shape[0]
         self.action_dim = self.action_space.shape[0]
 
@@ -53,14 +57,14 @@ class RPL_IQL(OracleIQL):
             "sigmoid": nn.Sigmoid()
         }.get(network_kwargs["reward"].pop("reward_act"))
         reward = vars(wiserl.module)[network_kwargs["reward"].pop("class")](
-            input_dim=self.observation_space.shape[0]+self.action_space.shape,
+            input_dim=self.observation_space.shape[0]+self.action_space.shape[0],
             output_dim=1,
             **network_kwargs["reward"]
         )
         optimal = vars(wiserl.module)[network_kwargs["optimal"].pop("class")](
             input_dim=self.observation_space.shape[0],
             output_dim=1,
-            ensemble_size=self.num_tasks*network_kwargs["opt"]["ensemble_size"]
+            ensemble_size=self.num_tasks*network_kwargs["optimal"]["ensemble_size"]
         )
 
         self.network["reward"] = nn.Sequential(self.network["encoder"], reward, reward_act)
@@ -89,9 +93,9 @@ class RPL_IQL(OracleIQL):
         optimal_values = torch.gather(
             optimal_values,
             0,
-            task_id.unsqueeze(0).expand(*optimal_values.shape[1:]).unsqueeze(0)
+            task_id.unsqueeze(0).unsqueeze(-1).expand(*optimal_values.shape[1:]).unsqueeze(0).to(torch.int64)
         )
-        return optimal_values
+        return optimal_values[0] # squeeze out the first dim
 
     def pretrain_step(self, batches, step: int, total_steps: int) -> Dict:
         batch = batches[0]
@@ -115,20 +119,20 @@ class RPL_IQL(OracleIQL):
 
         # train the optimal networks
         with torch.no_grad():
-            all_reward_target = self.target_network.reward(torch.concat([all_obs, all_action], dim=-1))
+            all_reward_target = self.target_network.reward(torch.concat([all_obs, all_action], dim=-1))[0]  # (B, L, 1)
             all_optimal_target = self.get_optimal_values(
                 self.target_network.optimal,
                 all_next_obs,
                 all_task_id
-            )
+            ) # (E, B, L, 1)
             all_target = all_optimal_target.min(0)[0]
             all_target = all_reward_target + self.discount * all_target # CHECK: default no terminal
         all_optimal_pred = self.get_optimal_values(
             self.network.optimal,
             all_obs,
             all_task_id
-        )
-        optimal_loss = expectile_regression(all_optimal_pred.unsqueeze(0), all_target, expectile=self.expectile)
+        ) # (E, B, L, 1)
+        optimal_loss = expectile_regression(all_optimal_pred, all_target.unsqueeze(0), expectile=self.alpha)
         optimal_loss = optimal_loss.sum(0).mean()
 
         self.optim["optimal"].zero_grad()
@@ -136,19 +140,23 @@ class RPL_IQL(OracleIQL):
         self.optim["optimal"].step()
 
         # train the reward networks
-        all_reward = self.network.reward(torch.concat([all_obs, all_action], dim=-1))
-        all_adv = all_reward + self.discount * all_target - all_optimal_pred.detach()
+        all_reward = self.network.reward(torch.concat([all_obs, all_action], dim=-1))[0] # (B, L, 1)
+        
+        all_adv = all_reward + self.discount * all_target - all_optimal_pred.mean(0).detach()
         adv1, adv2 = torch.chunk(all_adv, 2, dim=0)
         logits = adv2.sum(dim=1) - adv1.sum(dim=1)
         labels = batch["label"].float()
         reward_loss = self.reward_criterion(logits, labels).mean()
         reg_loss = (all_reward**2).mean()
         with torch.no_grad():
-            reward_accuracy = ((logits > 0) == torch.round(labels)).float()
+            reward_accuracy = ((logits > 0) == torch.round(labels)).float().mean()
 
         self.optim["reward"].zero_grad()
         (reward_loss + self.reward_reg * reg_loss).backward()
         self.optim["reward"].step()
+
+        sync_target(self.network.reward, self.target_network.reward, tau=self.tau)
+        sync_target(self.network.optimal, self.target_network.optimal, tau=self.tau)
 
         metrics = {
             "loss/reward_loss": reward_loss.item(),
@@ -174,6 +182,7 @@ class RPL_IQL(OracleIQL):
             self.target_network.eval()
             q_old = self.target_network.critic(obs, action)
             q_old = torch.min(q_old, dim=0)[0]
+            # q_old = torch.mean(q_old, dim=0)[0]
 
         # compute the loss for value network
         v_loss, v_pred = self.v_loss(obs.detach(), q_old)

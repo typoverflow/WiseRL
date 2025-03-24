@@ -83,7 +83,7 @@ class OracleAWAC(Algorithm):
         elif isinstance(self.network.actor, GaussianActor):
             policy_out = - self.network.actor.evaluate(encoded_obs, action)[0]
         actor_loss = (exp_advantage * policy_out)
-        return actor_loss.mean() if reduce else actor_loss, advantage
+        return actor_loss.mean() if reduce else actor_loss, advantage, exp_advantage
 
     def q_loss(self, encoded_obs, action, next_encoded_obs, reward, terminal, reduce=True):
         with torch.no_grad():
@@ -97,26 +97,39 @@ class OracleAWAC(Algorithm):
 
     def train_step(self, batches, step:int, total_steps: int):
         batch, *_ = batches
-        obs = torch.cat([batch["obs_1"], batch["obs_2"]], dim=0)  # (B, S+1)
-        action = torch.cat([batch["action_1"], batch["action_2"]], dim=0)  # (B, S+1)
-        reward = torch.cat([batch["reward_1"], batch["reward_2"]], dim=0)
-        terminal = torch.cat([batch["terminal_1"], batch["terminal_2"]], dim=0)
+        if "obs_1" in batch:
+            obs = torch.cat([batch["obs_1"], batch["obs_2"]], dim=0)  # (B, S+1)
+            action = torch.cat([batch["action_1"], batch["action_2"]], dim=0)  # (B, S+1)
+            reward = torch.cat([batch["reward_1"], batch["reward_2"]], dim=0)
+            terminal = torch.cat([batch["terminal_1"], batch["terminal_2"]], dim=0)
 
-        encoded_obs = self.network.encoder(obs)
+            encoded_obs = self.network.encoder(obs)
 
-        q_loss, q_pred = self.q_loss(
-            encoded_obs[:, :-1].detach(),
-            action[:, :-1],
-            encoded_obs[:, 1:].detach(),
-            reward[:, :-1],
-            terminal[:, :-1]
-        )
+            q_loss, q_pred = self.q_loss(
+                encoded_obs[:, :-1].detach(),
+                action[:, :-1],
+                encoded_obs[:, 1:].detach(),
+                reward[:, :-1],
+                terminal[:, :-1]
+            )
+        else:
+            obs = batch["obs"]
+            action = batch["action"]
+            reward = batch["reward"]
+            terminal = batch["terminal"].float()
+            next_obs = batch["next_obs"]
+
+            encoded_obs = self.network.encoder(obs)
+            next_encoded_obs = self.network.encoder(next_obs)
+            
+            q_loss, q_pred = self.q_loss(encoded_obs, action, next_encoded_obs, reward, terminal)
+
         self.optim["critic"].zero_grad()
         q_loss.backward()
         self.optim["critic"].step()
 
         # compute the loss for actor
-        actor_loss, advantage = self.actor_loss(encoded_obs, action)
+        actor_loss, advantage, exp_advantage= self.actor_loss(encoded_obs, action)
         self.optim["actor"].zero_grad()
         actor_loss.backward()
         self.optim["actor"].step()
@@ -131,6 +144,8 @@ class OracleAWAC(Algorithm):
             "loss/q_loss": q_loss.item(),
             "loss/actor_loss": actor_loss.item(),
             "misc/q_pred": q_pred.mean().item(),
-            "misc/advantage": advantage.mean().item()
+            "misc/advantage": advantage.mean().item(),
+            "misc/exp_advantage_mean": exp_advantage.mean().item(),
+            "misc/exp_advantage_std": exp_advantage.std().item()
         }
         return metrics

@@ -30,6 +30,7 @@ class OfflineTrainer(object):
         eval_freq: int = 1000,
         profile_freq: int = -1,
         checkpoint_freq: Optional[int] = None,
+        normalize_reward: bool = False, 
         logger: Optional[BaseLogger] = None,
         device: Union[str, torch.device] = "cpu"
     ):
@@ -49,6 +50,7 @@ class OfflineTrainer(object):
         self.eval_freq = eval_freq
         self.profile_freq = profile_freq
         self.checkpoint_freq = checkpoint_freq
+        self.normalize_reward = normalize_reward
         self.logger = logger
 
         # Datasets and dataloaders
@@ -79,6 +81,9 @@ class OfflineTrainer(object):
     def train(self):
         self.logger.info("Set up datasets and dataloaders")
         self._datasets = self.setup_datasets(self.dataset_kwargs)
+        if self.normalize_reward:
+            for d in self._datasets:
+                d.normalize_reward()
         self._dataloaders, self._dataloaders_iter = self.setup_dataloaders(self._datasets, self.dataloader_kwargs)
 
         # start training

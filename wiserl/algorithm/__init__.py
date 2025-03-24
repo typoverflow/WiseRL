@@ -12,3 +12,9 @@ from wiserl.algorithm.oracle_iql import OracleIQL
 from wiserl.algorithm.pt.pt_awac import PTAWAC
 from wiserl.algorithm.pt.pt_iql import PTIQL
 from wiserl.algorithm.sft import SFT
+from wiserl.algorithm.oracle_td3bc import OracleTD3BC
+from wiserl.algorithm.bt.bt_td3bc import BTTD3BC
+from wiserl.algorithm.oracle_sac import OracleSAC
+from wiserl.algorithm.bt.bt_sac import BTSAC
+from wiserl.algorithm.rpl.rpl_iql import RPL_IQL
+from wiserl.algorithm.rpl.rpl_awac import RPL_AWAC

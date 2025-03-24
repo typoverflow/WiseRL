@@ -1,0 +1,79 @@
+algorithm:
+  class: OracleAWAC
+  beta: 0.3333
+  max_exp_clip: 100.0
+
+checkpoint: null
+seed: 0
+name: default
+debug: false
+device: null
+wandb:
+  activate: false
+  entity: null
+  project: null
+
+env: hopper-gravity-1.0 #walker2d-gravity-1.0 #halfcheetah-gravity-1.0
+env_kwargs: 
+env_wrapper: 
+env_wrapper_kwargs: 
+
+eval_env: hopper-gravity-1.0 #walker2d-gravity-1.0 #halfcheetah-gravity-1.0
+eval_env_kwargs:
+eval_env_wrapper:
+eval_env_wrapper_kwargs:
+
+replay: false
+
+mismatch: hopper-gravity-0.5 #walker2d-gravity-5.0 #halfcheetah-gravity-1.0
+
+optim:
+  default:
+    class: Adam
+    lr: 0.0003
+
+network:
+  actor:
+    class: SquashedGaussianActor
+    hidden_dims: [256, 256, 256]
+    reparameterize: false
+    conditioned_logstd: false
+    logstd_min: -5
+    logstd_max: 2
+  critic:
+    class: Critic
+    ensemble_size: 2
+    hidden_dims: [256, 256, 256]
+  
+dataset:
+  - class: APLOfflineDataset
+    env: <env>
+    batch_size: 256
+    replay: <replay>
+    odrl: true
+    mismatch: <mismatch>
+
+dataloader:
+  num_workers: 2
+  batch_size: null
+
+
+trainer:
+  env_freq: null
+  total_steps: 500000
+  log_freq: 500
+  profile_freq: 500
+  eval_freq: 5000
+  normalize_reward: true
+
+eval:
+  function: eval_offline
+  num_ep: 10
+  deterministic: true
+
+schedulers:
+  actor:
+    class: CosineAnnealingLR
+    T_max: 500000
+
+processor: null
