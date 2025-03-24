@@ -113,7 +113,11 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
                     }
 
     def load_dataset(self):
-        env = gym.make(self.env_name)
+        # rewrite env name
+        env_name = self.env_name.split('-')[0]
+        env_name += '-medium'
+        env = gym.make(env_name)
+        #env = gym.make(self.env_name)
         dataset = env.get_dataset()
 
         N = dataset["rewards"].shape[0]

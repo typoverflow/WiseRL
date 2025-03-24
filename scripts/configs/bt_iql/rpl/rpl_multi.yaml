@@ -1,9 +1,13 @@
 algorithm:
-  class: BTAWAC
+  class: BTIQL
   beta: 0.3333
+  expectile: 0.7
   max_exp_clip: 100.0
   reward_reg: 0.0
   rm_label: true
+
+num_tasks: 5
+task_name: 0.1_0.5_1.0_2.0_5.0
 
 checkpoint: null
 seed: 0
@@ -15,18 +19,18 @@ wandb:
   entity: null
   project: null
 
-env: halfcheetah-gravity-0.5
+env: halfcheetah-gravity-1.0
 env_kwargs:
 env_wrapper:
 env_wrapper_kwargs:
 
-eval_env: halfcheetah-gravity-1.0
-eval_env_kwargs:
-eval_env_wrapper:
-eval_env_wrapper_kwargs:
+# eval_env: halfcheetah-gravity-0.1
+# eval_env_kwargs:
+# eval_env_wrapper:
+# eval_env_wrapper_kwargs:
 
 replay: true
-label_key: rl_dir
+label_key: rl_sum
 
 optim:
   default:
@@ -37,11 +41,11 @@ network:
   reward:
     class: EnsembleMLP
     ensemble_size: 1
-    hidden_dims: [256, 256, 256]
+    hidden_dims: [256, 256]
     reward_act: identity #sigmoid
   actor:
     class: SquashedGaussianActor
-    hidden_dims: [256, 256, 256]
+    hidden_dims: [256, 256]
     reparameterize: false
     conditioned_logstd: false
     logstd_min: -5
@@ -49,16 +53,21 @@ network:
   critic:
     class: Critic
     ensemble_size: 2
-    hidden_dims: [256, 256, 256]
+    hidden_dims: [256, 256]
+  value:
+    class: Critic
+    ensemble_size: 1
+    hidden_dims: [256, 256]
 
 
 rm_dataset:
-  - class: RPLComparisonDataset
-    env: <env>
-    batch_size: 64
-    segment_length: null
+  - class: MultiRPLComparisonDataset  # please fill in the class and parameters here
     label_key: <label_key>
-    replay: <replay>
+    num_tasks: <num_tasks>
+    env: <env>
+    task_name: <task_name>
+    batch_size: 32 #8
+    variant: gravity-100
     odrl: true
 
 rm_dataloader:
@@ -67,7 +76,7 @@ rm_dataloader:
 
 rl_dataset:
   - class: RPLOfflineDataset
-    env: <eval_env>
+    env: <env>
     batch_size: 256
     replay: <replay>
     odrl: true
@@ -78,19 +87,18 @@ rl_dataloader:
 
 trainer:
   env_freq: null
+  rm_label: true
   rm_steps: 100000
-  rl_steps: 500000
+  rl_steps: 1000000
   log_freq: 500
   profile_freq: 500
-  eval_freq: 10000
-  label_reward: true
-  normalize_reward: true
+  eval_freq: 5000
 
 rm_eval:
   function: eval_reward_model
   eval_dataset_kwargs:
     class: RPLComparisonDataset
-    env: <eval_env> #<env>
+    env: <env> #<env>
     batch_size: 32
     label_key: rl_reward_sum
     eval: true
@@ -105,6 +113,6 @@ rl_eval:
 schedulers:
   actor:
     class: CosineAnnealingLR
-    T_max: 500000
+    T_max: 1000000
 
 processor: null

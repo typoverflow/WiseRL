@@ -5,6 +5,9 @@ algorithm:
   reward_reg: 0.0
   rm_label: true
 
+num_tasks: 5
+task_name: 0.1_0.5_1.0_2.0_5.0
+
 checkpoint: null
 seed: 0
 name: default
@@ -15,15 +18,15 @@ wandb:
   entity: null
   project: null
 
-env: halfcheetah-gravity-0.5
+env: halfcheetah-gravity-1.0
 env_kwargs:
 env_wrapper:
 env_wrapper_kwargs:
 
-eval_env: halfcheetah-gravity-1.0
-eval_env_kwargs:
-eval_env_wrapper:
-eval_env_wrapper_kwargs:
+# eval_env: halfcheetah-gravity-1.0
+# eval_env_kwargs:
+# eval_env_wrapper:
+# eval_env_wrapper_kwargs:
 
 replay: true
 label_key: rl_dir
@@ -38,7 +41,7 @@ network:
     class: EnsembleMLP
     ensemble_size: 1
     hidden_dims: [256, 256, 256]
-    reward_act: identity #sigmoid
+    reward_act: sigmoid
   actor:
     class: SquashedGaussianActor
     hidden_dims: [256, 256, 256]
@@ -53,12 +56,12 @@ network:
 
 
 rm_dataset:
-  - class: RPLComparisonDataset
-    env: <env>
-    batch_size: 64
-    segment_length: null
+  - class: MultiRPLComparisonDataset  
     label_key: <label_key>
-    replay: <replay>
+    num_tasks: <num_tasks>
+    env: <env>
+    task_name: <task_name>
+    batch_size: 64
     odrl: true
 
 rm_dataloader:
@@ -67,7 +70,7 @@ rm_dataloader:
 
 rl_dataset:
   - class: RPLOfflineDataset
-    env: <eval_env>
+    env: <env>
     batch_size: 256
     replay: <replay>
     odrl: true
@@ -90,7 +93,7 @@ rm_eval:
   function: eval_reward_model
   eval_dataset_kwargs:
     class: RPLComparisonDataset
-    env: <eval_env> #<env>
+    env: <env> #<env>
     batch_size: 32
     label_key: rl_reward_sum
     eval: true

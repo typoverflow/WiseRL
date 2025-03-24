@@ -56,6 +56,8 @@ if __name__ == "__main__":
     )
     logger.log_config(args, type="yaml")
     setup(args, logger)
+    import torch
+    args['device'] = torch.device('cuda:0')
 
     # process the environment
     env_fn = functools.partial(get_env, args["env"], args["env_kwargs"], args["env_wrapper"], args["env_wrapper_kwargs"])

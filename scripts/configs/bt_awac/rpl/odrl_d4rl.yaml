@@ -38,7 +38,7 @@ network:
     class: EnsembleMLP
     ensemble_size: 1
     hidden_dims: [256, 256, 256]
-    reward_act: identity #sigmoid
+    reward_act: sigmoid
   actor:
     class: SquashedGaussianActor
     hidden_dims: [256, 256, 256]
@@ -66,11 +66,9 @@ rm_dataloader:
   batch_size: null
 
 rl_dataset:
-  - class: RPLOfflineDataset
+  - class: D4RLOfflineDataset
     env: <eval_env>
     batch_size: 256
-    replay: <replay>
-    odrl: true
 
 rl_dataloader:
   num_workers: 2

@@ -1,8 +1,12 @@
+num_tasks: 5
+task_name: 0.1_0.5_1.0_2.0_5.0
+
 algorithm:
-  class: BTAWAC
-  beta: 0.3333
+  class: RPL_AWAC
+  num_tasks: <num_tasks>    # number of tasks
+  alpha: 0.7      # expectile for Eq. 8
+  beta: 0.3333    # inv. temperature of IQL
   max_exp_clip: 100.0
-  reward_reg: 0.0
   rm_label: true
 
 checkpoint: null
@@ -15,15 +19,10 @@ wandb:
   entity: null
   project: null
 
-env: halfcheetah-gravity-0.5
+env: walker2d-gravity-1.0
 env_kwargs:
 env_wrapper:
 env_wrapper_kwargs:
-
-eval_env: halfcheetah-gravity-1.0
-eval_env_kwargs:
-eval_env_wrapper:
-eval_env_wrapper_kwargs:
 
 replay: true
 label_key: rl_dir
@@ -34,11 +33,6 @@ optim:
     lr: 0.0003
 
 network:
-  reward:
-    class: EnsembleMLP
-    ensemble_size: 1
-    hidden_dims: [256, 256, 256]
-    reward_act: identity #sigmoid
   actor:
     class: SquashedGaussianActor
     hidden_dims: [256, 256, 256]
@@ -50,35 +44,48 @@ network:
     class: Critic
     ensemble_size: 2
     hidden_dims: [256, 256, 256]
-
+  value:
+    class: Critic
+    ensemble_size: 1
+    hidden_dims: [256, 256, 256]
+  reward: 
+    class: EnsembleMLP
+    ensemble_size: 1
+    hidden_dims: [256, 256, 256]
+    reward_act: sigmoid
+  optimal: 
+    class: Critic
+    ensemble_size: 2
+    hidden_dims: [256, 256, 256]
 
 rm_dataset:
-  - class: RPLComparisonDataset
-    env: <env>
-    batch_size: 64
-    segment_length: null
+  - class: MultiRPLComparisonDataset  # please fill in the class and parameters here
     label_key: <label_key>
-    replay: <replay>
+    num_tasks: <num_tasks>
+    env: <env>
+    task_name: <task_name>
+    batch_size: 64
+    variant: gravity-100
     odrl: true
-
 rm_dataloader:
   num_workers: 2
   batch_size: null
 
-rl_dataset:
-  - class: RPLOfflineDataset
-    env: <eval_env>
+rl_dataset: 
+  - class: D4RLOfflineDataset
+    env: <env>
     batch_size: 256
-    replay: <replay>
-    odrl: true
+    #replay: <replay>
+    #odrl: true
 
-rl_dataloader:
+rl_dataloader: 
   num_workers: 2
   batch_size: null
 
+
 trainer:
   env_freq: null
-  rm_steps: 100000
+  rm_steps: 500000
   rl_steps: 500000
   log_freq: 500
   profile_freq: 500
@@ -90,7 +97,7 @@ rm_eval:
   function: eval_reward_model
   eval_dataset_kwargs:
     class: RPLComparisonDataset
-    env: <eval_env> #<env>
+    env: <env>
     batch_size: 32
     label_key: rl_reward_sum
     eval: true
