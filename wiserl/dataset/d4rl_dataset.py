@@ -254,23 +254,62 @@ class D4RLOfflineDataset(torch.utils.data.IterableDataset):
             for t in reversed(range(return_.shape[1]-1)):
                 return_[:, t] += return_[:, t+1]
             self.data["return"] = return_
-            # normalization
-            prev_return_min, prev_return_max = return_[:, 0].min(), return_[:, 0].max()
-            max_return = max(abs(return_[:, 0].max()), abs(return_[:, 0].min()), return_[:, 0].max()-return_[:, 0].min(), 1.0)
-            norm = 1000. / max_return
-            self.data["reward"] *= norm
-            self.data["return"] *= norm
-            print(f"[D4RLOfflineDataset]: return range: [{prev_return_min}, {prev_return_max}], multiplying norm factor {norm}.")
+            if "antmaze" in self.env_name:
+                # normalization on antmaze may look weird, we borrow it from preference transformer
+                # https://github.com/csmile-1006/PreferenceTransformer/blob/f71647bb075c8287e2f26aded78aa8f1ac176eb5/train_offline.py#L78 and
+                # https://github.com/csmile-1006/PreferenceTransformer/blob/f71647bb075c8287e2f26aded78aa8f1ac176eb5/train_offline.py#L119
+                min_return, max_return = self.data["return"][:, 0].min(), self.data["return"][:, 0].max()
+                norm = 1000. / (max_return - min_return)
+                self.data["reward"] *= norm
+                self.data["reward"] -= 1.0
+                self.data["reward"] *= self.data["mask"]
+
+                # for i in range(self.data["reward"].shape[0]):
+                #     self.data["reward"][i] -= (1. + self.data["return"][i, 0] / self.traj_len[i]) * self.data["mask"][i]
+                return_ = self.data["reward"].copy()
+                for t in reversed(range(return_.shape[1]-1)):
+                    return_[:, t] += return_[:, t+1]
+                self.data["return"] = return_
+            else:
+                prev_return_min, prev_return_max = return_[:, 0].min(), return_[:, 0].max()
+                max_return = max(abs(return_[:, 0].max()), abs(return_[:, 0].min()), return_[:, 0].max()-return_[:, 0].min(), 1.0)
+                norm = 1000. / max_return
+                self.data["reward"] *= norm
+                self.data["return"] *= norm
+                print(f"[D4RLOfflineDataset]: return range: [{prev_return_min}, {prev_return_max}], multiplying norm factor {norm}.")
         elif self.mode == "transition":
             ep_reward_ = []
+            ep_length_ = []
             episode_reward = 0
+            episode_length = 0
             N = self.data["reward"].shape[0]
             for i in range(N):
                 episode_reward += self.data["reward"][i]
+                episode_length += 1
                 if self.data["end"][i]:
                     ep_reward_.append(episode_reward)
-                    episode_reward = 0
-            max_return = max(abs(min(ep_reward_)).item(), abs(max(ep_reward_)).item(), (max(ep_reward_)-min(ep_reward_)).item(), 1.0)
-            norm = 1000 / max_return
-            self.data["reward"] *= norm
-            print(f"[D4RLOfflineDataset]: return range: [{min(ep_reward_)}, {max(ep_reward_)}], multiplying norm factor {norm}.")
+                    ep_length_.append(episode_length)
+                    episode_reward = episode_length = 0
+
+            if "antmaze" in self.env_name:
+                # normalization on antmaze may look weird, we borrow it from preference transformer
+                # https://github.com/csmile-1006/PreferenceTransformer/blob/f71647bb075c8287e2f26aded78aa8f1ac176eb5/train_offline.py#L78 and
+                # https://github.com/csmile-1006/PreferenceTransformer/blob/f71647bb075c8287e2f26aded78aa8f1ac176eb5/train_offline.py#L119
+                min_return, max_return  = min(ep_reward_), max(ep_reward_)
+                # idx = 0
+                print("max return: ", max_return, " min_return: ", min_return)
+                # for ep_len in ep_length_:
+                #     for l in range(ep_len):
+                #         self.data["reward"][idx] -= max_return / ep_len
+                #         idx += 1
+                # assert idx == N
+                norm = 1000 / (max_return - min_return)
+                # self.data["reward"] *= norm
+                self.data["reward"] -= 1.0
+                self.data["reward"] *= self.data["mask"]
+                print(f"[D4RLOfflineDataset]: return range: [{min_return}, {max_return}], multiplying norm factor {norm}.")
+            else:
+                max_return = max(abs(min(ep_reward_)).item(), abs(max(ep_reward_)).item(), (max(ep_reward_)-min(ep_reward_)).item(), 1.0)
+                norm = 1000 / max_return
+                self.data["reward"] *= norm
+                print(f"[D4RLOfflineDataset]: return range: [{min(ep_reward_)}, {max(ep_reward_)}], multiplying norm factor {norm}.")
